@@ -1,0 +1,21 @@
+[Unit]
+Description=Reward Vault Backend
+After=network.target
+
+[Service]
+Type=simple
+# Adjust User and WorkingDirectory to match your Pi setup
+User=pi
+WorkingDirectory=/home/pi/reward-vault
+# Pass Habitica credentials via environment
+Environment="HABITICA_USER_ID=PASTE_YOUR_USER_ID_HERE"
+Environment="HABITICA_API_KEY=PASTE_YOUR_API_KEY_HERE"
+Environment="PORT=3000"
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

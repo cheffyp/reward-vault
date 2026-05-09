@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#1a1a1a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>Reward Vault</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%92%8E%3C/text%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --bg: #fafaf7;
+      --surface: #ffffff;
+      --surface-2: #f1efe8;
+      --surface-3: #e8e6df;
+      --text: #1a1a1a;
+      --text-muted: #5f5e5a;
+      --text-faint: #888780;
+      --border: rgba(0,0,0,0.08);
+      --border-strong: rgba(0,0,0,0.18);
+      --accent: #185fa5;
+      --accent-bg: #E6F1FB;
+      --accent-text: #0C447C;
+      --success: #3B6D11;
+      --success-bg: #EAF3DE;
+      --success-text: #27500A;
+      --danger: #A32D2D;
+      --danger-bg: #FCEBEB;
+      --danger-text: #791F1F;
+      --gold: #EF9F27;
+      --gold-bg: #FAEEDA;
+      --gold-text: #633806;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1a1a1a;
+        --surface: #242422;
+        --surface-2: #2c2c2a;
+        --surface-3: #3a3a37;
+        --text: #f1efe8;
+        --text-muted: #b4b2a9;
+        --text-faint: #888780;
+        --border: rgba(255,255,255,0.1);
+        --border-strong: rgba(255,255,255,0.2);
+        --accent: #5fa1e3;
+        --accent-bg: #0C447C;
+        --accent-text: #B5D4F4;
+        --success: #97C459;
+        --success-bg: #27500A;
+        --success-text: #C0DD97;
+        --danger: #F09595;
+        --danger-bg: #501313;
+        --danger-text: #F7C1C1;
+        --gold: #F4C775;
+        --gold-bg: #412402;
+        --gold-text: #FAC775;
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior-y: contain;
+    }
+    .app { max-width: 720px; margin: 0 auto; padding: env(safe-area-inset-top, 16px) 16px env(safe-area-inset-bottom, 24px) 16px; min-height: 100vh; }
+    .header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin: 8px 0 24px; }
+    .title { font-size: 22px; font-weight: 500; margin: 0; }
+    .header-right { display: flex; gap: 8px; align-items: center; }
+    .gold-pill { display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: var(--surface-2); border-radius: 999px; font-size: 14px; cursor: pointer; border: none; color: var(--text); user-select: none; font-family: inherit; }
+    .gold-pill:active { background: var(--surface-3); }
+    .gold-coin { width: 14px; height: 14px; border-radius: 50%; background: var(--gold); flex-shrink: 0; }
+    .gold-amount { font-weight: 500; font-variant-numeric: tabular-nums; }
+    .gold-status { font-size: 12px; color: var(--text-muted); }
+
+    .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-faint); margin-right: 4px; flex-shrink: 0; }
+    .conn-dot.ok { background: var(--success); }
+    .conn-dot.bad { background: var(--danger); }
+
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); padding: 12px 20px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-md); font-size: 14px; box-shadow: 0 4px 16px rgba(0,0,0,0.15); z-index: 200; max-width: 90vw; animation: toastIn 0.25s ease; }
+    .toast.success { border-color: var(--success); color: var(--success-text); background: var(--success-bg); }
+    .toast.error { border-color: var(--danger); color: var(--danger-text); background: var(--danger-bg); }
+    @keyframes toastIn { from { transform: translate(-50%, 20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+
+    .timer-panel { background: var(--surface-2); border-radius: var(--radius-lg); padding: 24px 16px; margin-bottom: 20px; text-align: center; transition: background 0.3s ease; }
+    .timer-panel.idle { color: var(--text-faint); font-size: 14px; padding: 16px; }
+    .timer-panel.alerting { background: var(--danger-bg); animation: alertPulse 1s ease-in-out infinite; }
+    @keyframes alertPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.01); } }
+    .timer-name { font-size: 13px; color: var(--text-muted); margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .timer-display { font-size: 56px; font-weight: 500; font-variant-numeric: tabular-nums; margin: 0 0 16px; letter-spacing: -2px; line-height: 1; }
+    .timer-progress { height: 6px; background: var(--surface-3); border-radius: 3px; overflow: hidden; margin: 0 0 16px; }
+    .timer-bar { height: 100%; background: var(--accent); transition: width 1s linear; border-radius: 3px; }
+    .timer-controls { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .timer-btn { padding: 10px 20px; font-size: 14px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-md); cursor: pointer; color: var(--text); font-family: inherit; }
+    .timer-btn.danger { color: var(--danger); }
+    .timer-btn.primary { background: var(--accent); color: white; border-color: var(--accent); font-weight: 500; }
+    .timer-btn:active { opacity: 0.85; }
+
+    .reward-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 24px; }
+    @media (min-width: 600px) { .reward-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); } }
+    .reward-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+    .reward-card.affordable { border-color: var(--success); }
+    .reward-row1 { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+    .reward-name { font-size: 15px; font-weight: 500; margin: 0; }
+    .reward-meta { font-size: 13px; color: var(--text-muted); margin: 0; line-height: 1.5; }
+    .reward-cost { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 500; padding: 3px 10px; background: var(--gold-bg); color: var(--gold-text); border-radius: 999px; flex-shrink: 0; }
+    .reward-cost-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); }
+    .vault-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--surface-2); border-radius: var(--radius-md); margin-top: 4px; }
+    .vault-count { display: flex; align-items: baseline; gap: 6px; }
+    .vault-num { font-size: 22px; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1; }
+    .vault-label { font-size: 12px; color: var(--text-muted); }
+    .duration-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); }
+    .duration-input { width: 60px; padding: 6px 8px; font-size: 13px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font-family: inherit; }
+    .action-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+    .btn-buy { padding: 12px; font-size: 14px; font-weight: 500; background: var(--gold-bg); color: var(--gold-text); border: none; border-radius: var(--radius-md); cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .btn-buy:active:not(:disabled) { opacity: 0.85; }
+    .btn-buy:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-buy.confirming { background: var(--gold); color: white; }
+    .btn-buy-coin { width: 10px; height: 10px; border-radius: 50%; background: var(--gold); flex-shrink: 0; }
+    .btn-buy.confirming .btn-buy-coin { background: white; }
+    .btn-use { padding: 12px; font-size: 14px; font-weight: 500; background: var(--accent-bg); color: var(--accent-text); border: none; border-radius: var(--radius-md); cursor: pointer; font-family: inherit; }
+    .btn-use:active:not(:disabled) { opacity: 0.85; }
+    .btn-use:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .end-prompt { background: var(--accent-bg); border-radius: var(--radius-lg); padding: 16px; margin-bottom: 20px; }
+    .end-prompt-title { font-size: 15px; font-weight: 500; margin: 0 0 12px; color: var(--accent-text); }
+    .end-prompt-options { display: flex; gap: 8px; flex-wrap: wrap; }
+    .end-prompt-btn { padding: 8px 14px; font-size: 13px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); cursor: pointer; color: var(--text); font-family: inherit; }
+    .end-prompt-btn:active { background: var(--surface-2); }
+    .end-prompt-dismiss { padding: 8px 14px; font-size: 13px; color: var(--text-muted); background: transparent; border: none; cursor: pointer; font-family: inherit; }
+
+    .history-section { margin-top: 24px; }
+    .history-title { font-size: 13px; font-weight: 500; color: var(--text-muted); margin: 0 0 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .history-list { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--surface-2); border-radius: var(--radius-md); font-size: 13px; gap: 8px; }
+    .history-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px; flex-shrink: 0; font-weight: 500; }
+    .history-tag.buy { background: var(--gold-bg); color: var(--gold-text); }
+    .history-tag.use { background: var(--accent-bg); color: var(--accent-text); }
+    .history-empty { font-size: 13px; color: var(--text-faint); font-style: italic; padding: 8px 0; }
+
+    .footer-note { text-align: center; font-size: 11px; color: var(--text-faint); margin-top: 32px; padding-bottom: 8px; }
+    .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1 class="title">Reward Vault</h1>
+      <div class="header-right">
+        <button class="gold-pill" id="gold-pill" title="Tap to refresh">
+          <span class="conn-dot" id="conn-dot"></span>
+          <span class="gold-coin"></span>
+          <span class="gold-amount" id="gold-amount">—</span>
+          <span class="gold-status" id="gold-status">connecting</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="end-prompt" id="end-prompt" style="display: none;">
+      <p class="end-prompt-title" id="end-prompt-text">Time's up. What's next?</p>
+      <div class="end-prompt-options" id="end-prompt-options"></div>
+    </div>
+
+    <div class="timer-panel idle" id="timer-panel">
+      <span>Loading…</span>
+    </div>
+
+    <div class="reward-grid" id="reward-grid"></div>
+
+    <div class="history-section">
+      <h3 class="history-title">Recent activity</h3>
+      <div class="history-list" id="history-list">
+        <span class="history-empty">No activity yet.</span>
+      </div>
+    </div>
+
+    <div class="footer-note">
+      Buy adds to vault &amp; deducts gold · Use starts timer &amp; consumes one · State synced via Pi
+    </div>
+  </div>
+
+  <script>
+  (function() {
+    // ============ CONFIG ============
+    // Frontend served from same origin as backend, so no URL needed
+    const API_BASE = '';
+    const POLL_INTERVAL_MS = 3000;
+    const CONFIRM_TIMEOUT_MS = 4000;
+    const ALERT_INTERVAL_MS = 5000;
+    const ALERT_DURATION_MS = 30000;
+    const TITLE_FLASH_INTERVAL_MS = 800;
+    const ORIGINAL_TITLE = 'Reward Vault';
+
+    // ============ STATE ============
+    let serverState = null;        // last response from /api/state
+    let gold = null;
+    let goldError = null;
+    let connected = false;
+    let confirmingBuyId = null;
+    let confirmTimeout = null;
+    let buyingId = null;
+    let useInFlight = false;
+    let cancelInFlight = false;
+    let dismissInFlight = false;
+
+    // Alert tracking — local-only, prevents re-alerting for the same timer
+    let alertedTimerIds = new Set();
+    let currentAlertTimerId = null;
+    let alertChimeInterval = null;
+    let alertVibrateInterval = null;
+    let alertTitleInterval = null;
+    let alertStopTimeout = null;
+
+    // Tick interval for smooth countdown rendering between polls
+    let tickInterval = null;
+
+    // ============ AUDIO ============
+    let audioCtx = null;
+    function getAudioContext() {
+      if (!audioCtx) {
+        try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+        catch (e) { console.error('AudioContext failed', e); }
+      }
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+      return audioCtx;
+    }
+    function playChime() {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      try {
+        [659, 784, 988].forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.frequency.value = freq;
+          osc.type = 'sine';
+          const startTime = ctx.currentTime + i * 0.13;
+          gain.gain.setValueAtTime(0.0001, startTime);
+          gain.gain.exponentialRampToValueAtTime(0.25, startTime + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.4);
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(startTime);
+          osc.stop(startTime + 0.4);
+        });
+      } catch (e) {}
+    }
+    function tryVibrate() {
+      if ('vibrate' in navigator) {
+        try { navigator.vibrate([200, 100, 200, 100, 200]); } catch (e) {}
+      }
+    }
+
+    // ============ API CLIENT ============
+    async function apiGet(path) {
+      const res = await fetch(API_BASE + path);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    }
+    async function apiPost(path, body) {
+      const res = await fetch(API_BASE + path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) throw new Error(data.error || ('HTTP ' + res.status));
+      return data;
+    }
+
+    // ============ POLLING ============
+    async function poll() {
+      try {
+        const data = await apiGet('/api/state');
+        connected = true;
+        serverState = data;
+        handlePendingAlert(data.pendingAlert);
+        render();
+      } catch (e) {
+        connected = false;
+        renderConnection();
+      }
+    }
+    async function fetchGold() {
+      try {
+        const data = await apiGet('/api/gold');
+        gold = data.gold;
+        goldError = null;
+      } catch (e) {
+        gold = null;
+        goldError = e.message;
+      }
+      renderGold();
+      render();
+    }
+
+    // ============ MULTI-DEVICE ALERT HANDLING ============
+    function handlePendingAlert(pending) {
+      if (!pending) {
+        // No pending alert. If we were alerting, stop.
+        if (currentAlertTimerId) stopAlert(false);
+        return;
+      }
+      // There's a pending alert on the server.
+      // If we haven't already alerted for this timer, start now.
+      if (currentAlertTimerId === pending.timerId) return; // already alerting
+      if (alertedTimerIds.has(pending.timerId)) return;    // we already showed alert and dismissed it locally — but server still says it's pending. Just wait for user dismiss.
+      startAlert(pending);
+    }
+
+    function startAlert(pending) {
+      stopAlert(false);
+      currentAlertTimerId = pending.timerId;
+
+      playChime();
+      tryVibrate();
+
+      alertChimeInterval = setInterval(playChime, ALERT_INTERVAL_MS);
+      alertVibrateInterval = setInterval(tryVibrate, ALERT_INTERVAL_MS);
+
+      let flashOn = false;
+      alertTitleInterval = setInterval(() => {
+        if (document.hidden) {
+          flashOn = !flashOn;
+          document.title = flashOn ? '⏰ TIME\'S UP!' : '⏰ ' + pending.rewardName;
+        } else {
+          document.title = ORIGINAL_TITLE;
+        }
+      }, TITLE_FLASH_INTERVAL_MS);
+
+      // Auto-stop locally after ALERT_DURATION_MS (still pending on server until dismissed)
+      alertStopTimeout = setTimeout(() => {
+        // After timeout, mark this timer as locally alerted and stop the noise.
+        // Server alert remains until someone dismisses.
+        if (currentAlertTimerId) {
+          alertedTimerIds.add(currentAlertTimerId);
+          stopAlert(false);
+        }
+      }, ALERT_DURATION_MS);
+
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try {
+          new Notification('Reward time complete', {
+            body: pending.rewardName + ' — ' + pending.duration + ' min done.',
+            requireInteraction: true,
+            tag: 'vault-' + pending.timerId
+          });
+        } catch (e) {}
+      }
+    }
+
+    function stopAlert(showPromptIfFinished) {
+      if (alertChimeInterval) { clearInterval(alertChimeInterval); alertChimeInterval = null; }
+      if (alertVibrateInterval) { clearInterval(alertVibrateInterval); alertVibrateInterval = null; }
+      if (alertTitleInterval) { clearInterval(alertTitleInterval); alertTitleInterval = null; }
+      if (alertStopTimeout) { clearTimeout(alertStopTimeout); alertStopTimeout = null; }
+      document.title = ORIGINAL_TITLE;
+      if (currentAlertTimerId) alertedTimerIds.add(currentAlertTimerId);
+      currentAlertTimerId = null;
+      render();
+    }
+
+    async function dismissAlert() {
+      if (dismissInFlight) return;
+      dismissInFlight = true;
+      try {
+        await apiPost('/api/dismiss-alert');
+        // Server cleared pendingAlert; on next poll handlePendingAlert will see null and stop alert if needed.
+        // But also stop locally right now for snappiness.
+        stopAlert(true);
+        // Show end-prompt with rewards available
+        if (serverState && serverState.pendingAlert) {
+          showEndPrompt(serverState.pendingAlert);
+        }
+        await poll();
+      } catch (e) {
+        showToast('Failed to dismiss: ' + e.message, 'error');
+      } finally {
+        dismissInFlight = false;
+      }
+    }
+
+    // ============ ACTIONS ============
+    function tryBuy(rewardId) {
+      if (confirmingBuyId === rewardId) {
+        clearConfirm();
+        buyReward(rewardId);
+      } else {
+        clearConfirm();
+        confirmingBuyId = rewardId;
+        renderRewards();
+        confirmTimeout = setTimeout(() => {
+          clearConfirm();
+          renderRewards();
+        }, CONFIRM_TIMEOUT_MS);
+      }
+    }
+    function clearConfirm() {
+      if (confirmTimeout) { clearTimeout(confirmTimeout); confirmTimeout = null; }
+      confirmingBuyId = null;
+    }
+
+    async function buyReward(rewardId) {
+      if (buyingId) return;
+      buyingId = rewardId;
+      renderRewards();
+      try {
+        const data = await apiPost('/api/buy', { rewardId });
+        if (typeof data.gold === 'number') gold = data.gold;
+        const r = (serverState && serverState.rewards || []).find(x => x.id === rewardId);
+        showToast('Bought ' + (r ? r.name : 'reward') + ' (-' + data.cost + ' gold)', 'success');
+        await poll();
+      } catch (e) {
+        showToast('Purchase failed: ' + e.message, 'error');
+      } finally {
+        buyingId = null;
+        renderGold();
+        render();
+      }
+    }
+
+    async function useReward(rewardId) {
+      if (useInFlight) return;
+      if (serverState && serverState.activeTimer) return;
+      useInFlight = true;
+      getAudioContext(); // prime audio for background-tab playback
+      try {
+        await apiPost('/api/use', { rewardId });
+        await poll();
+      } catch (e) {
+        showToast('Use failed: ' + e.message, 'error');
+      } finally {
+        useInFlight = false;
+      }
+    }
+
+    async function cancelTimer() {
+      if (cancelInFlight) return;
+      cancelInFlight = true;
+      try {
+        await apiPost('/api/cancel');
+        showToast('Timer cancelled — reward returned to vault', 'success');
+        await poll();
+      } catch (e) {
+        showToast('Cancel failed: ' + e.message, 'error');
+      } finally {
+        cancelInFlight = false;
+      }
+    }
+
+    async function updateRaidDuration(minutes) {
+      try {
+        await apiPost('/api/raid-duration', { minutes });
+      } catch (e) {
+        showToast('Could not update duration: ' + e.message, 'error');
+      }
+    }
+
+    // ============ RENDER ============
+    function renderConnection() {
+      const dot = document.getElementById('conn-dot');
+      const stat = document.getElementById('gold-status');
+      if (connected) dot.className = 'conn-dot ok';
+      else { dot.className = 'conn-dot bad'; stat.textContent = 'offline'; }
+    }
+
+    function renderGold() {
+      const amt = document.getElementById('gold-amount');
+      const stat = document.getElementById('gold-status');
+      if (!connected) { amt.textContent = '—'; stat.textContent = 'offline'; return; }
+      if (goldError) { amt.textContent = '—'; stat.textContent = 'gold error'; return; }
+      if (gold === null) { amt.textContent = '...'; stat.textContent = 'loading'; return; }
+      amt.textContent = gold.toLocaleString();
+      stat.textContent = 'gold';
+    }
+
+    function renderRewards() {
+      const grid = document.getElementById('reward-grid');
+      if (!serverState) { grid.innerHTML = ''; return; }
+      grid.innerHTML = '';
+      serverState.rewards.forEach(r => {
+        const stack = serverState.stacks[r.id] || 0;
+        const affordable = gold !== null && gold >= r.cost;
+        const buying = buyingId === r.id;
+        const confirming = confirmingBuyId === r.id;
+
+        const card = document.createElement('div');
+        card.className = 'reward-card' + (affordable ? ' affordable' : '');
+
+        let buyLabel;
+        if (buying) buyLabel = '<span class="spinner"></span> Buying...';
+        else if (confirming) buyLabel = 'Confirm? ' + r.cost + 'g';
+        else buyLabel = '<span class="btn-buy-coin"></span> Buy (' + r.cost + ')';
+
+        const buyDisabled = buying || !connected || (!affordable && !confirming);
+        const useDisabled = stack === 0 || !!serverState.activeTimer || !!serverState.pendingAlert || useInFlight;
+
+        card.innerHTML =
+          '<div class="reward-row1">' +
+            '<p class="reward-name">' + r.name + '</p>' +
+            '<span class="reward-cost"><span class="reward-cost-dot"></span>' + r.cost + '</span>' +
+          '</div>' +
+          '<p class="reward-meta">' + r.desc + '</p>' +
+          '<div class="vault-row">' +
+            '<div class="vault-count"><span class="vault-num">' + stack + '</span><span class="vault-label">in vault</span></div>' +
+          '</div>' +
+          (r.editable
+            ? '<div class="duration-row">Duration: <input type="number" class="duration-input" id="dur-' + r.id + '" value="' + serverState.raidDuration + '" min="1" max="600" /> min</div>'
+            : '') +
+          '<div class="action-row">' +
+            '<button class="btn-buy' + (confirming ? ' confirming' : '') + '" data-action="buy" data-id="' + r.id + '"' + (buyDisabled ? ' disabled' : '') + '>' + buyLabel + '</button>' +
+            '<button class="btn-use" data-action="use" data-id="' + r.id + '"' + (useDisabled ? ' disabled' : '') + '>Use & start timer</button>' +
+          '</div>';
+        grid.appendChild(card);
+      });
+
+      const raidInput = document.getElementById('dur-raid');
+      if (raidInput) {
+        raidInput.addEventListener('change', () => {
+          const n = parseInt(raidInput.value, 10) || 60;
+          updateRaidDuration(n);
+        });
+      }
+    }
+
+    function renderTimer() {
+      const panel = document.getElementById('timer-panel');
+      // Alerting (pending alert from server)
+      if (currentAlertTimerId && serverState && serverState.pendingAlert) {
+        const p = serverState.pendingAlert;
+        panel.className = 'timer-panel alerting';
+        panel.innerHTML =
+          '<p class="timer-name">Time\'s up</p>' +
+          '<p class="timer-display" style="color: var(--danger);">00:00</p>' +
+          '<div style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">' + p.rewardName + ' — ' + p.duration + ' min done.</div>' +
+          '<div class="timer-controls">' +
+            '<button class="timer-btn primary" id="dismiss-alert">' + (dismissInFlight ? '...' : 'Dismiss') + '</button>' +
+          '</div>';
+        document.getElementById('dismiss-alert').addEventListener('click', dismissAlert);
+        return;
+      }
+      // Active timer
+      if (serverState && serverState.activeTimer) {
+        const t = serverState.activeTimer;
+        const remaining = Math.max(0, t.endsAt - Date.now());
+        const total = t.totalMs;
+        const pct = Math.max(0, Math.min(100, ((total - remaining) / total) * 100));
+        const mins = Math.floor(remaining / 60000);
+        const secs = Math.floor((remaining % 60000) / 1000);
+        const display = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+        panel.className = 'timer-panel';
+        panel.innerHTML =
+          '<p class="timer-name">' + t.rewardName + '</p>' +
+          '<p class="timer-display">' + display + '</p>' +
+          '<div class="timer-progress"><div class="timer-bar" style="width: ' + pct.toFixed(1) + '%;"></div></div>' +
+          '<div class="timer-controls"><button class="timer-btn danger" id="cancel-timer"' + (cancelInFlight ? ' disabled' : '') + '>' + (cancelInFlight ? 'Cancelling…' : 'Cancel') + '</button></div>';
+        document.getElementById('cancel-timer').addEventListener('click', cancelTimer);
+        return;
+      }
+      // Idle
+      panel.className = 'timer-panel idle';
+      panel.innerHTML = connected ? '<span>No active timer. Use a reward to start.</span>' : '<span>Connecting to vault…</span>';
+    }
+
+    function renderHistory() {
+      const list = document.getElementById('history-list');
+      if (!serverState || !serverState.history.length) {
+        list.innerHTML = '<span class="history-empty">No activity yet.</span>';
+        return;
+      }
+      list.innerHTML = serverState.history.slice(0, 20).map(h => {
+        const d = new Date(h.timestamp);
+        const time = d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        const tag = h.type === 'buy' ? '<span class="history-tag buy">buy</span>' : '<span class="history-tag use">use</span>';
+        const detail = h.type === 'buy'
+          ? h.rewardName + ' · -' + h.cost + ' gold'
+          : h.rewardName + ' · ' + h.duration + ' min';
+        return '<div class="history-item">' + tag + '<span style="flex:1;">' + detail + '</span><span style="color: var(--text-muted);">' + time + '</span></div>';
+      }).join('');
+    }
+
+    function render() {
+      renderConnection();
+      renderGold();
+      renderRewards();
+      renderTimer();
+      renderHistory();
+    }
+
+    function showEndPrompt(finished) {
+      const prompt = document.getElementById('end-prompt');
+      const text = document.getElementById('end-prompt-text');
+      const opts = document.getElementById('end-prompt-options');
+      text.textContent = finished.rewardName + ' done. What\'s next?';
+      const rewards = serverState ? serverState.rewards : [];
+      const stacks = serverState ? serverState.stacks : {};
+      const available = rewards.filter(r => (stacks[r.id] || 0) > 0);
+      if (available.length === 0) {
+        opts.innerHTML = '<span style="font-size: 13px; color: var(--accent-text);">Vault is empty. Buy or earn more.</span><button class="end-prompt-dismiss" data-action="dismiss-prompt">OK</button>';
+      } else {
+        opts.innerHTML = available.map(r =>
+          '<button class="end-prompt-btn" data-action="use-next" data-id="' + r.id + '">Use ' + r.name + ' (' + stacks[r.id] + ' left)</button>'
+        ).join('') + '<button class="end-prompt-dismiss" data-action="dismiss-prompt">Done for now</button>';
+      }
+      prompt.style.display = 'block';
+    }
+    function hidePrompt() { document.getElementById('end-prompt').style.display = 'none'; }
+
+    let toastTimeout;
+    function showToast(msg, type) {
+      const existing = document.querySelector('.toast');
+      if (existing) existing.remove();
+      if (toastTimeout) clearTimeout(toastTimeout);
+      const toast = document.createElement('div');
+      toast.className = 'toast ' + (type || '');
+      toast.textContent = msg;
+      document.body.appendChild(toast);
+      toastTimeout = setTimeout(() => toast.remove(), 3500);
+    }
+
+    // ============ EVENTS ============
+    document.addEventListener('click', (e) => {
+      getAudioContext();
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      const action = btn.dataset.action;
+      const id = btn.dataset.id;
+      if (action !== 'buy' && confirmingBuyId) {
+        clearConfirm();
+        renderRewards();
+      }
+      if (action === 'buy') tryBuy(id);
+      else if (action === 'use') useReward(id);
+      else if (action === 'use-next') { hidePrompt(); useReward(id); }
+      else if (action === 'dismiss-prompt') hidePrompt();
+    });
+
+    document.getElementById('gold-pill').addEventListener('click', fetchGold);
+
+    document.addEventListener('click', () => {
+      if ('Notification' in window && Notification.permission === 'default') {
+        try { Notification.requestPermission(); } catch (e) {}
+      }
+    }, { once: true });
+
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        document.title = ORIGINAL_TITLE;
+        poll(); // catch up immediately when tab regains focus
+      }
+    });
+
+    // ============ INIT ============
+    poll();
+    fetchGold();
+    setInterval(poll, POLL_INTERVAL_MS);
+    setInterval(() => { if (connected && !document.hidden) fetchGold(); }, 60000);
+    // Tick at 1s for smooth countdown rendering between polls
+    tickInterval = setInterval(() => {
+      if (serverState && serverState.activeTimer) renderTimer();
+    }, 1000);
+  })();
+  </script>
+</body>
+</html>
