@@ -76,6 +76,13 @@ Unregister-ScheduledTask RewardGuard -Confirm:$false
 Remove-Item C:\ProgramData\RewardGuard -Recurse -Force
 ```
 
+## Dashboard
+
+Once the agent is running, this PC shows up in the Reward Vault dashboard's **Device access**
+panel (labelled `PC · games`) as **blocked** / **unblocked**, alongside the Pi-hole devices.
+If the agent stops reporting for 30 seconds it shows as **offline** there. This is purely a
+status report — the agent enforces locally regardless of what the dashboard shows.
+
 ## Notes & limits
 
 - **Standard hardening.** The task runs in your user session so it can show warnings. A

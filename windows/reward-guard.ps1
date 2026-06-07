@@ -69,6 +69,15 @@ function Invoke-Extend([string]$base, [string]$rewardId) {
     -Body (@{ rewardId = $rewardId } | ConvertTo-Json -Compress) -ContentType "application/json" -TimeoutSec 8
 }
 
+function Invoke-Heartbeat([string]$base, [bool]$locked) {
+  # Best-effort: tell the server our lock state so the dashboard can show this PC.
+  try {
+    Invoke-RestMethod -Method Post -Uri ("{0}/api/guard/heartbeat" -f $base) `
+      -Body (@{ host = $env:COMPUTERNAME; locked = $locked; version = "1" } | ConvertTo-Json -Compress) `
+      -ContentType "application/json" -TimeoutSec 6 | Out-Null
+  } catch { }
+}
+
 function Now-Ms { [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() }
 
 # =====================================================================
@@ -205,6 +214,8 @@ while ($true) {
     } else {
       $locked = [bool]$cfg.blockWhenUnreachable    # fail-open by default
     }
+
+    if ($apiBase) { Invoke-Heartbeat $apiBase $locked }
 
     # Warnings while a timer is running
     if ($timer) {

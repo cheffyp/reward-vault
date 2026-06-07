@@ -238,6 +238,11 @@ Adding time uses the new endpoint:
   timer and consumes one from the vault. The dashboard also shows **+time** buttons on the
   active-timer panel.
 
+The agent also heartbeats its lock state (`POST /api/guard/heartbeat`) every poll, so the PC
+appears in the dashboard's **Device access** panel next to the Pi-hole devices — labelled
+`PC · games`, and shown as **offline** if it stops reporting for 30s. Pi-hole devices are
+labelled `· DNS`.
+
 ## Customizing
 
 ### Changing rewards

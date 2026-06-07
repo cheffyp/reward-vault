@@ -103,6 +103,16 @@ const ENFORCEMENT_FILE = path.join(__dirname, 'enforcement.json');
 let enforcementConfig = { rewards: {} };
 let enforcementStatus = { enabled: pihole.ENABLED, reachable: false, groupName: pihole.GROUP_NAME, devices: [], lastReconcileAt: null, lastError: pihole.ENABLED ? null : 'PIHOLE_APP_PASSWORD not set' };
 
+// Process-enforced clients (e.g. the Windows Reward Guard agent) report in here. They
+// enforce locally and just heartbeat their lock state so the dashboard can show them.
+const GUARD_STALE_MS = 30000;   // no heartbeat within this window -> shown as offline/stale
+let guards = {};                // host -> { host, locked, version, lastSeen }
+
+function guardList() {
+  const now = Date.now();
+  return Object.values(guards).map(g => ({ ...g, stale: (now - g.lastSeen) > GUARD_STALE_MS }));
+}
+
 function loadEnforcementConfig() {
   try {
     enforcementConfig = JSON.parse(fs.readFileSync(ENFORCEMENT_FILE, 'utf8'));
@@ -269,13 +279,32 @@ app.get('/api/state', (req, res) => {
     pendingAlert: state.pendingAlert,
     raidDuration: state.raidDuration,
     enforcement: enforcementStatus,
+    guards: guardList(),
     serverTime: Date.now()
   });
 });
 
 // Cached enforcement status (updated on each reconcile — cheap, no live Pi-hole call).
 app.get('/api/enforcement', (req, res) => {
-  res.json({ ok: true, ...enforcementStatus });
+  res.json({ ok: true, ...enforcementStatus, guards: guardList() });
+});
+
+// Heartbeat from a process-enforcement agent (Windows Reward Guard). Best-effort, in-memory.
+app.post('/api/guard/heartbeat', (req, res) => {
+  const { host, locked, version } = req.body || {};
+  if (!host) return res.status(400).json({ ok: false, error: 'host required' });
+  const key = String(host).slice(0, 64);
+  guards[key] = {
+    host: key,
+    locked: !!locked,
+    version: version ? String(version).slice(0, 32) : undefined,
+    lastSeen: Date.now()
+  };
+  res.json({ ok: true });
+});
+
+app.get('/api/guards', (req, res) => {
+  res.json({ ok: true, guards: guardList() });
 });
 
 // Force a live reconcile + fresh snapshot (e.g. after editing enforcement.json).
