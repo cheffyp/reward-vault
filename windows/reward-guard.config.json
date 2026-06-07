@@ -49,5 +49,13 @@
     "jagexlauncher"
   ],
 
-  "allowProcessNames": []
+  "allowProcessNames": ["wallpaper32", "wallpaper64"],
+
+  "_allowPaths_note": "Folders spared even though they sit under a blockPath. Use this for non-game utilities installed inside a Steam library (Wallpaper Engine, DisplayFusion, etc.).",
+  "allowPaths": [
+    "C:\\Program Files (x86)\\Steam\\steamapps\\common\\wallpaper_engine",
+    "C:\\Program Files (x86)\\Steam\\steamapps\\common\\DisplayFusion",
+    "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Borderless Gaming",
+    "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Driver Booster for Steam"
+  ]
 }

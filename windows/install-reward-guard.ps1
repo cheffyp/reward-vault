@@ -30,6 +30,9 @@ $srcDir  = $PSScriptRoot
 $destDir = Join-Path $env:ProgramData "RewardGuard"
 New-Item -ItemType Directory -Force -Path $destDir | Out-Null
 
+# Stop any running instance so the agent script can be refreshed and reloaded cleanly.
+Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue | Out-Null
+
 Copy-Item (Join-Path $srcDir "reward-guard.ps1") (Join-Path $destDir "reward-guard.ps1") -Force
 $destCfg = Join-Path $destDir "reward-guard.config.json"
 if (Test-Path $destCfg) {

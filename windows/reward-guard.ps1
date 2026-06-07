@@ -165,6 +165,10 @@ Write-Log "guard starting (poll $($cfg.pollSeconds)s)"
 $blockPaths = @($cfg.blockPaths | ForEach-Object { $_.ToLower().TrimEnd('\') })
 $blockNames = @($cfg.blockProcessNames | ForEach-Object { $_.ToLower() })
 $allowNames = @($cfg.allowProcessNames | ForEach-Object { $_.ToLower() })
+# Folders to spare even when they sit under a blocked path (e.g. Wallpaper Engine, which
+# lives inside the Steam common folder). Safe if the key is absent in an older config.
+$allowPaths = @()
+if ($cfg.allowPaths) { $allowPaths = @($cfg.allowPaths | ForEach-Object { $_.ToLower().TrimEnd('\') }) }
 
 $apiBase = $null
 $lastTimerId = $null
@@ -182,6 +186,7 @@ function Test-ShouldKill($proc) {
   if (-not $path) { return $false }
   $lp = $path.ToLower()
   if ($lp.StartsWith("c:\windows\")) { return $false }
+  foreach ($ap in $allowPaths) { if ($lp.StartsWith($ap + '\')) { return $false } }  # spared folders win
   if ($blockNames -contains $name) { return $true }
   foreach ($bp in $blockPaths) { if ($lp.StartsWith($bp + '\')) { return $true } }
   return $false
