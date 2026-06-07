@@ -219,6 +219,7 @@
     let useInFlight = false;
     let cancelInFlight = false;
     let dismissInFlight = false;
+    let extendInFlight = false;
 
     // Alert tracking — local-only, prevents re-alerting for the same timer
     let alertedTimerIds = new Set();
@@ -449,6 +450,21 @@
       }
     }
 
+    async function extendTimer(rewardId) {
+      if (extendInFlight) return;
+      extendInFlight = true;
+      try {
+        await apiPost('/api/extend', { rewardId });
+        const r = (serverState && serverState.rewards || []).find(x => x.id === rewardId);
+        showToast('Added time' + (r ? ' (+' + (r.editable ? serverState.raidDuration : r.defaultMins) + ' min)' : ''), 'success');
+        await poll();
+      } catch (e) {
+        showToast('Extend failed: ' + e.message, 'error');
+      } finally {
+        extendInFlight = false;
+      }
+    }
+
     async function cancelTimer() {
       if (cancelInFlight) return;
       cancelInFlight = true;
@@ -564,11 +580,20 @@
         const secs = Math.floor((remaining % 60000) / 1000);
         const display = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
         panel.className = 'timer-panel';
+        const extendBtns = (serverState.rewards || [])
+          .filter(r => (serverState.stacks[r.id] || 0) > 0)
+          .map(r => {
+            const m = r.editable ? serverState.raidDuration : r.defaultMins;
+            return '<button class="timer-btn" data-action="extend" data-id="' + r.id + '"' + (extendInFlight ? ' disabled' : '') +
+              '>+' + m + 'm ' + r.name + '</button>';
+          }).join('');
         panel.innerHTML =
           '<p class="timer-name">' + t.rewardName + '</p>' +
           '<p class="timer-display">' + display + '</p>' +
           '<div class="timer-progress"><div class="timer-bar" style="width: ' + pct.toFixed(1) + '%;"></div></div>' +
-          '<div class="timer-controls"><button class="timer-btn danger" id="cancel-timer"' + (cancelInFlight ? ' disabled' : '') + '>' + (cancelInFlight ? 'Cancelling…' : 'Cancel') + '</button></div>';
+          '<div class="timer-controls">' + extendBtns +
+            '<button class="timer-btn danger" id="cancel-timer"' + (cancelInFlight ? ' disabled' : '') + '>' + (cancelInFlight ? 'Cancelling…' : 'Cancel') + '</button>' +
+          '</div>';
         document.getElementById('cancel-timer').addEventListener('click', cancelTimer);
         return;
       }
@@ -672,6 +697,7 @@
       }
       if (action === 'buy') tryBuy(id);
       else if (action === 'use') useReward(id);
+      else if (action === 'extend') extendTimer(id);
       else if (action === 'use-next') { hidePrompt(); useReward(id); }
       else if (action === 'dismiss-prompt') hidePrompt();
     });

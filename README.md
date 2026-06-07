@@ -221,6 +221,23 @@ Each device entry looks like:
 If Pi-hole is unreachable, enforcement fails **soft**: timers and rewards keep working,
 and `enforcement.lastError` / `reachable` report the problem.
 
+## Windows PC enforcement (Reward Guard)
+
+The Pi-hole channel above gates devices by DNS. The Windows PC (CHEFFYPC) is enforced
+differently — by **killing game processes** — because that PC runs a VPN that would tunnel
+around Pi-hole DNS. See [`windows/README.md`](windows/README.md) for setup.
+
+In short: a PowerShell agent polls `GET /api/state` and, while there's **no active timer**,
+terminates any process running from your Steam libraries / game folders (and the game
+launchers). Any active timer (all three tiers) unlocks gaming. Before a timer expires it
+shows **10-minute and 5-minute warnings** with one-click buttons to add time.
+
+Adding time uses the new endpoint:
+
+- `POST /api/extend` `{ "rewardId": "handheld" }` — adds that reward's minutes to the running
+  timer and consumes one from the vault. The dashboard also shows **+time** buttons on the
+  active-timer panel.
+
 ## Customizing
 
 ### Changing rewards

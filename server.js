@@ -5,6 +5,7 @@
  *   GET  /api/state                 → full vault state (poll target)
  *   POST /api/buy                   → buy a reward in Habitica
  *   POST /api/use                   → use a reward (start timer, decrement vault)
+ *   POST /api/extend                → add time to the active timer (consume another reward)
  *   POST /api/cancel                → cancel active timer (return reward to vault)
  *   POST /api/dismiss-alert         → dismiss the pending alert (any device)
  *   POST /api/raid-duration         → update raid ticket duration
@@ -365,6 +366,36 @@ app.post('/api/cancel', (req, res) => {
   saveState();
   reconcileEnforcement('timer-cancel');  // re-lock the reward's devices
   res.json({ ok: true });
+});
+
+// Extend the currently-running timer by consuming another reward from the vault.
+// Lets you add time mid-session (e.g. from the PC's expiry warning) without ending it.
+app.post('/api/extend', (req, res) => {
+  const { rewardId } = req.body || {};
+  if (!state.activeTimer) return res.status(409).json({ ok: false, error: 'no active timer to extend' });
+  const reward = REWARDS.find(r => r.id === rewardId);
+  if (!reward) return res.status(400).json({ ok: false, error: 'unknown reward' });
+  if ((state.stacks[rewardId] || 0) === 0) return res.status(400).json({ ok: false, error: 'vault is empty for this reward' });
+
+  const mins = reward.editable ? state.raidDuration : reward.defaultMins;
+  const addMs = mins * 60 * 1000;
+  state.activeTimer.endsAt += addMs;     // stack onto the current end, not "now"
+  state.activeTimer.totalMs += addMs;
+  state.activeTimer.duration += mins;
+  state.stacks[rewardId] -= 1;
+  state.history.unshift({
+    type: 'extend',
+    rewardId,
+    rewardName: reward.name,
+    duration: mins,
+    timestamp: Date.now()
+  });
+  state.history = state.history.slice(0, 100);
+  saveState();
+  // Devices stay unlocked (timer still active); reconcile in case the extending reward
+  // maps to additional devices. The active reward id is unchanged.
+  reconcileEnforcement('timer-extend');
+  res.json({ ok: true, activeTimer: state.activeTimer });
 });
 
 app.post('/api/dismiss-alert', (req, res) => {

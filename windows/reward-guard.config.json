@@ -1,0 +1,53 @@
+{
+  "_README": "Config for reward-guard.ps1 on CHEFFYPC. While the Reward Vault has NO active timer, any process under blockPaths (or named in blockProcessNames) is killed. Any active reward timer (all 3 tiers) unlocks everything. Edit and re-run install-reward-guard.ps1, or just restart the RewardGuard scheduled task, to apply.",
+
+  "apiUrls": [
+    "https://raspberrypi.tail08dd2f.ts.net:3443",
+    "http://192.168.0.78:3000"
+  ],
+
+  "pollSeconds": 5,
+  "warnMinutes": [10, 5],
+  "warnTimeoutSeconds": 120,
+  "skipCertCheck": false,
+  "blockWhenUnreachable": false,
+
+  "blockPaths": [
+    "C:\\Program Files (x86)\\Steam",
+    "D:\\SteamLibrary",
+    "E:\\SteamLibrary",
+    "C:\\Games",
+    "D:\\Games",
+    "E:\\Games",
+    "E:\\SquareEnix",
+    "C:\\Program Files (x86)\\Epic Games",
+    "C:\\Program Files\\Epic Games",
+    "C:\\Program Files (x86)\\Battle.net",
+    "C:\\Program Files (x86)\\Ubisoft\\Ubisoft Game Launcher",
+    "C:\\Program Files\\Electronic Arts",
+    "C:\\Program Files (x86)\\Electronic Arts",
+    "C:\\Program Files\\EA Games",
+    "C:\\Riot Games",
+    "C:\\Program Files\\Rockstar Games",
+    "C:\\Program Files (x86)\\Rockstar Games",
+    "C:\\Program Files (x86)\\Jagex Launcher",
+    "C:\\Program Files (x86)\\Jagex"
+  ],
+
+  "blockProcessNames": [
+    "steam",
+    "steamwebhelper",
+    "epicgameslauncher",
+    "battle.net",
+    "eadesktop",
+    "eabackgroundservice",
+    "upc",
+    "ubisoftconnect",
+    "ubisoftgamelauncher",
+    "riotclientservices",
+    "leagueclient",
+    "jagexlauncher"
+  ],
+
+  "allowProcessNames": []
+}
