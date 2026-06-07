@@ -17,6 +17,21 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 
+// Load .env (simple KEY=VALUE lines) so secrets like PIHOLE_APP_PASSWORD are available
+// without adding a dependency. systemd can alternatively pass these via Environment=.
+// Must run before requiring ./pihole (it reads env at module load).
+(function loadDotEnv() {
+  try {
+    const raw = fs.readFileSync(path.join(__dirname, '.env'), 'utf8');
+    raw.split('\n').forEach(line => {
+      const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);
+      if (m && !(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+    });
+  } catch (e) { /* no .env file — that's fine */ }
+})();
+
+const pihole = require('./pihole');
+
 // ============ CONFIG ============
 const PORT = process.env.PORT || 3000;
 const HABITICA_USER_ID = process.env.HABITICA_USER_ID || '';
@@ -79,6 +94,77 @@ function saveState() {
   fs.renameSync(tmp, STATE_FILE);
 }
 
+// ============ PI-HOLE ENFORCEMENT ============
+// enforcement.json maps each reward -> the devices it unlocks. Devices live in the
+// Pi-hole "RewardLocked" group (all DNS blocked) by default; the device(s) for the
+// currently-running reward are removed from the group while its timer is active.
+const ENFORCEMENT_FILE = path.join(__dirname, 'enforcement.json');
+let enforcementConfig = { rewards: {} };
+let enforcementStatus = { enabled: pihole.ENABLED, reachable: false, groupName: pihole.GROUP_NAME, devices: [], lastReconcileAt: null, lastError: pihole.ENABLED ? null : 'PIHOLE_APP_PASSWORD not set' };
+
+function loadEnforcementConfig() {
+  try {
+    enforcementConfig = JSON.parse(fs.readFileSync(ENFORCEMENT_FILE, 'utf8'));
+    if (!enforcementConfig.rewards) enforcementConfig.rewards = {};
+    console.log('[enforce] config loaded');
+  } catch (e) {
+    enforcementConfig = { rewards: {} };
+    console.warn('[enforce] no/invalid enforcement.json — enforcement disabled:', e.message);
+  }
+}
+
+// Placeholder ids in the shipped template — skip these until the user fills in real MACs.
+function isPlaceholder(id) { return /^PLACEHOLDER/i.test(id || ''); }
+
+// Build the de-duplicated list of every enforced device, with the rewards each unlocks.
+function getEnforcedDevices() {
+  const byId = new Map();
+  for (const [rewardId, r] of Object.entries(enforcementConfig.rewards || {})) {
+    for (const d of (r.devices || [])) {
+      if (!d || !d.id || isPlaceholder(d.id)) continue;
+      const key = d.id.toLowerCase();
+      if (!byId.has(key)) byId.set(key, { id: d.id, name: d.name || d.id, rewards: [] });
+      byId.get(key).rewards.push(rewardId);
+    }
+  }
+  return Array.from(byId.values());
+}
+
+// Which device ids should currently be UNLOCKED, derived from the single source of
+// truth (state.activeTimer). No active timer -> nothing unlocked (all blocked).
+function getUnlockedIds() {
+  const set = new Set();
+  if (state.activeTimer) {
+    const r = enforcementConfig.rewards[state.activeTimer.rewardId];
+    for (const d of ((r && r.devices) || [])) {
+      if (d && d.id && !isPlaceholder(d.id)) set.add(d.id.toLowerCase());
+    }
+  }
+  return set;
+}
+
+// Reconcile Pi-hole group membership to match current state. Best-effort: never throws
+// into the timer/reward flow. Called on timer start, expiry, cancel, and at startup.
+let reconcileChain = Promise.resolve();
+function reconcileEnforcement(reason) {
+  if (!pihole.ENABLED) return reconcileChain;
+  const devices = getEnforcedDevices();
+  const unlocked = getUnlockedIds();
+  // Serialize reconciles so overlapping calls can't race on the Pi-hole API.
+  reconcileChain = reconcileChain.then(async () => {
+    try {
+      const snap = await pihole.reconcile(devices, unlocked);
+      enforcementStatus = { ...snap, lastReconcileAt: Date.now() };
+      const open = snap.devices.filter(d => d.locked === false).map(d => d.name);
+      console.log(`[enforce] reconciled (${reason || 'manual'}): ${open.length ? 'unlocked ' + open.join(', ') : 'all locked'}`);
+    } catch (e) {
+      enforcementStatus = { ...enforcementStatus, reachable: false, lastError: e.message, lastReconcileAt: Date.now() };
+      console.error('[enforce] reconcile failed:', e.message);
+    }
+  });
+  return reconcileChain;
+}
+
 // ============ TIMER EXPIRY CHECKER ============
 // Runs every second. If activeTimer's endsAt is in the past, complete it.
 function checkTimerExpiry() {
@@ -95,6 +181,7 @@ function checkTimerExpiry() {
     };
     console.log('[timer] expired:', finished.rewardName);
     saveState();
+    reconcileEnforcement('timer-expiry');  // re-lock the reward's devices
   }
 }
 setInterval(checkTimerExpiry, 1000);
@@ -180,8 +267,21 @@ app.get('/api/state', (req, res) => {
     activeTimer: state.activeTimer,
     pendingAlert: state.pendingAlert,
     raidDuration: state.raidDuration,
+    enforcement: enforcementStatus,
     serverTime: Date.now()
   });
+});
+
+// Cached enforcement status (updated on each reconcile — cheap, no live Pi-hole call).
+app.get('/api/enforcement', (req, res) => {
+  res.json({ ok: true, ...enforcementStatus });
+});
+
+// Force a live reconcile + fresh snapshot (e.g. after editing enforcement.json).
+app.post('/api/enforcement/reconcile', async (req, res) => {
+  loadEnforcementConfig();
+  await reconcileEnforcement('manual-api');
+  res.json({ ok: true, ...enforcementStatus });
 });
 
 app.get('/api/gold', async (req, res) => {
@@ -250,6 +350,7 @@ app.post('/api/use', (req, res) => {
   // Clear any old pending alert when starting a new timer
   state.pendingAlert = null;
   saveState();
+  reconcileEnforcement('timer-start');  // unlock this reward's devices
   res.json({ ok: true, activeTimer: state.activeTimer });
 });
 
@@ -262,6 +363,7 @@ app.post('/api/cancel', (req, res) => {
   if (idx >= 0) state.history.splice(idx, 1);
   state.activeTimer = null;
   saveState();
+  reconcileEnforcement('timer-cancel');  // re-lock the reward's devices
   res.json({ ok: true });
 });
 
@@ -285,6 +387,16 @@ const http = require('http');
 const https = require('https');
 
 loadState();
+
+// Load device map and reconcile Pi-hole to current state. This handles the
+// reboot-mid-timer case (req. 4): loadState() already expired any stale timer, so the
+// reconcile below blocks/unblocks devices to match whatever the active timer is now.
+loadEnforcementConfig();
+if (pihole.ENABLED) {
+  reconcileEnforcement('startup');
+} else {
+  console.warn('[enforce] PIHOLE_APP_PASSWORD not set — network enforcement disabled');
+}
 
 const HTTP_PORT = parseInt(process.env.PORT || '3000', 10);
 const HTTPS_PORT = parseInt(process.env.HTTPS_PORT || '3443', 10);

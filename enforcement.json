@@ -1,0 +1,21 @@
+{
+  "_README": "Maps each reward to the devices it unlocks. While a reward's timer is running, its devices are removed from the Pi-hole 'RewardLocked' group (DNS unblocked); otherwise they stay in it (all DNS blocked). Identify devices by MAC (recommended) or IP. rewardId keys must match the ids in REWARDS in server.js (handheld, grinder, raid). After editing, POST /api/enforcement/reconcile (or restart the service) to apply.",
+  "groupName": "RewardLocked",
+  "rewards": {
+    "handheld": {
+      "label": "The Handheld Pass",
+      "devices": [
+        { "name": "Steam Deck", "id": "B0:0C:9D:93:D6:DD" },
+        { "name": "Switch 2", "id": "E0:EF:BF:53:15:7B" }
+      ]
+    },
+    "grinder": {
+      "label": "The Grinder's Fee",
+      "devices": []
+    },
+    "raid": {
+      "label": "High-End Raid Ticket",
+      "devices": []
+    }
+  }
+}

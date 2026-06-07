@@ -143,6 +143,10 @@
     .history-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px; flex-shrink: 0; font-weight: 500; }
     .history-tag.buy { background: var(--gold-bg); color: var(--gold-text); }
     .history-tag.use { background: var(--accent-bg); color: var(--accent-text); }
+    .lock-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px; flex-shrink: 0; font-weight: 500; }
+    .lock-tag.locked { background: var(--danger-bg); color: var(--danger-text); }
+    .lock-tag.open { background: var(--success-bg); color: var(--success-text); }
+    .lock-tag.warn { background: var(--gold-bg); color: var(--gold-text); }
     .history-empty { font-size: 13px; color: var(--text-faint); font-style: italic; padding: 8px 0; }
 
     .footer-note { text-align: center; font-size: 11px; color: var(--text-faint); margin-top: 32px; padding-bottom: 8px; }
@@ -174,6 +178,11 @@
     </div>
 
     <div class="reward-grid" id="reward-grid"></div>
+
+    <div class="history-section" id="enforce-section" style="display: none;">
+      <h3 class="history-title">Device access</h3>
+      <div class="history-list" id="enforce-list"></div>
+    </div>
 
     <div class="history-section">
       <h3 class="history-title">Recent activity</h3>
@@ -585,11 +594,37 @@
       }).join('');
     }
 
+    function renderEnforcement() {
+      const section = document.getElementById('enforce-section');
+      const list = document.getElementById('enforce-list');
+      const e = serverState && serverState.enforcement;
+      if (!e || !e.enabled || !e.devices || e.devices.length === 0) {
+        section.style.display = 'none';
+        return;
+      }
+      section.style.display = 'block';
+      let rows = e.devices.map(d => {
+        let tag;
+        if (d.ok === false) tag = '<span class="lock-tag warn">error</span>';
+        else if (d.locked) tag = '<span class="lock-tag locked">blocked</span>';
+        else tag = '<span class="lock-tag open">unblocked</span>';
+        return '<div class="history-item">' + tag +
+          '<span style="flex:1;">' + d.name + '</span>' +
+          '<span style="color: var(--text-muted); font-variant-numeric: tabular-nums;">' + d.id + '</span></div>';
+      }).join('');
+      if (!e.reachable) {
+        rows = '<div class="history-item"><span class="lock-tag warn">offline</span>' +
+          '<span style="flex:1; color: var(--text-muted);">Pi-hole unreachable — status may be stale</span></div>' + rows;
+      }
+      list.innerHTML = rows;
+    }
+
     function render() {
       renderConnection();
       renderGold();
       renderRewards();
       renderTimer();
+      renderEnforcement();
       renderHistory();
     }
 
