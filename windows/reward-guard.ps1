@@ -1,9 +1,10 @@
 <#
-  reward-guard.ps1 — Reward Vault enforcement agent for CHEFFYPC.
+  reward-guard.ps1 - Reward Vault enforcement agent for CHEFFYPC.
 
   Polls the Reward Vault API. While NO reward timer is active, it kills any process
   running from a configured game folder (blockPaths) or matching a launcher name
-  (blockProcessNames). Any active timer (handheld / grinder / raid) unlocks everything.
+  (blockProcessNames), unless it is spared by allowPaths / allowProcessNames. Any active
+  timer (handheld / grinder / raid) unlocks everything.
 
   Before a running timer expires it pops a warning (default 10 and 5 minutes left)
   that lets you spend a vaulted reward to add more time, or open the dashboard to buy.
@@ -13,6 +14,8 @@
     -WarnMode   show the expiry warning dialog (the loop spawns this for itself)
 
   Runs under Windows PowerShell 5.1 (powershell.exe). Install via install-reward-guard.ps1.
+  Keep this file ASCII-only: Windows PowerShell 5.1 reads .ps1 as ANSI, and stray Unicode
+  (e.g. an em dash) decodes into characters it treats as string delimiters and won't parse.
 #>
 [CmdletBinding()]
 param(
@@ -81,7 +84,7 @@ function Invoke-Heartbeat([string]$base, [bool]$locked) {
 function Now-Ms { [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() }
 
 # =====================================================================
-# WARN MODE — interactive expiry dialog (spawned by the guard loop)
+# WARN MODE - interactive expiry dialog (spawned by the guard loop)
 # =====================================================================
 if ($WarnMode) {
   Add-Type -AssemblyName System.Windows.Forms
@@ -122,7 +125,7 @@ if ($WarnMode) {
           $closeTimer = New-Object System.Windows.Forms.Timer
           $closeTimer.Interval = 1500; $closeTimer.Add_Tick({ $closeTimer.Stop(); $form.Close() }); $closeTimer.Start()
         } catch {
-          $lbl.Text = "Couldn't add time: $($_.Exception.Message)"
+          $lbl.Text = "Could not add time: $($_.Exception.Message)"
         }
       }.GetNewClosure())
       $form.Controls.Add($btn)
@@ -148,7 +151,7 @@ if ($WarnMode) {
   $dismiss.Add_Click({ $form.Close() })
   $form.Controls.Add($dismiss)
 
-  # Auto-close so an ignored warning doesn't linger forever.
+  # Auto-close so an ignored warning does not linger forever.
   $auto = New-Object System.Windows.Forms.Timer
   $auto.Interval = [Math]::Max(10, [int]$cfg.warnTimeoutSeconds) * 1000
   $auto.Add_Tick({ $auto.Stop(); $form.Close() })
@@ -165,6 +168,10 @@ Write-Log "guard starting (poll $($cfg.pollSeconds)s)"
 $blockPaths = @($cfg.blockPaths | ForEach-Object { $_.ToLower().TrimEnd('\') })
 $blockNames = @($cfg.blockProcessNames | ForEach-Object { $_.ToLower() })
 $allowNames = @($cfg.allowProcessNames | ForEach-Object { $_.ToLower() })
+# Folders to spare even when they sit under a blocked path (e.g. Wallpaper Engine, which
+# lives inside the Steam common folder). Safe if the key is absent in an older config.
+$allowPaths = @()
+if ($cfg.allowPaths) { $allowPaths = @($cfg.allowPaths | ForEach-Object { $_.ToLower().TrimEnd('\') }) }
 
 $apiBase = $null
 $lastTimerId = $null
@@ -178,10 +185,11 @@ function Test-ShouldKill($proc) {
   if ($Protected -contains $name) { return $false }
   if ($allowNames -contains $name) { return $false }
   $path = $null
-  try { $path = $proc.Path } catch { return $false }   # protected/system proc — skip
+  try { $path = $proc.Path } catch { return $false }   # protected/system proc - skip
   if (-not $path) { return $false }
   $lp = $path.ToLower()
   if ($lp.StartsWith("c:\windows\")) { return $false }
+  foreach ($ap in $allowPaths) { if ($lp.StartsWith($ap + '\')) { return $false } }  # spared folders win
   if ($blockNames -contains $name) { return $true }
   foreach ($bp in $blockPaths) { if ($lp.StartsWith($bp + '\')) { return $true } }
   return $false

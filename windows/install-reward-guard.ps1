@@ -1,5 +1,5 @@
 <#
-  install-reward-guard.ps1 — set up the Reward Vault guard on CHEFFYPC.
+  install-reward-guard.ps1 - set up the Reward Vault guard on CHEFFYPC.
 
   Run this once, as Administrator (right-click > Run with PowerShell, or it will self-elevate).
   It copies the agent to C:\ProgramData\RewardGuard and registers a scheduled task that:
@@ -8,7 +8,10 @@
     - re-launches itself every 2 minutes if it was closed (auto-restart),
     - runs hidden, with no time limit, single-instance.
 
-  Re-run after editing reward-guard.config.json to refresh the installed copy.
+  Re-run after editing reward-guard.config.json to refresh the installed copy. It stops a
+  running instance first so the new agent/config actually takes effect.
+
+  Keep this file ASCII-only (Windows PowerShell 5.1 reads .ps1 as ANSI; stray Unicode breaks parsing).
 #>
 [CmdletBinding()]
 param(
@@ -30,10 +33,13 @@ $srcDir  = $PSScriptRoot
 $destDir = Join-Path $env:ProgramData "RewardGuard"
 New-Item -ItemType Directory -Force -Path $destDir | Out-Null
 
+# Stop any running instance so the agent script can be refreshed and reloaded cleanly.
+Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue | Out-Null
+
 Copy-Item (Join-Path $srcDir "reward-guard.ps1") (Join-Path $destDir "reward-guard.ps1") -Force
 $destCfg = Join-Path $destDir "reward-guard.config.json"
 if (Test-Path $destCfg) {
-  Write-Host "Config already present at $destCfg — leaving it (edit it there, or delete to reset)."
+  Write-Host "Config already present at $destCfg - leaving it (edit it there, or delete to reset)."
 } else {
   Copy-Item (Join-Path $srcDir "reward-guard.config.json") $destCfg -Force
 }
@@ -60,11 +66,13 @@ Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
 
 Start-ScheduledTask -TaskName $TaskName
 
+$logPath = Join-Path $destDir "reward-guard.log"
 Write-Host ""
 Write-Host "Installed and started '$TaskName'."
 Write-Host "  Agent:  $script"
 Write-Host "  Config: $cfgArg"
-Write-Host "  Log:    $(Join-Path $destDir 'reward-guard.log')"
+Write-Host "  Log:    $logPath"
 Write-Host ""
-Write-Host "Check it:   Get-ScheduledTask $TaskName ;  Get-Content '$(Join-Path $destDir 'reward-guard.log')' -Tail 20 -Wait"
-Write-Host "Uninstall:  Unregister-ScheduledTask $TaskName -Confirm:`$false"
+Write-Host "Check it:   Get-ScheduledTask $TaskName"
+Write-Host "Watch log:  Get-Content '$logPath' -Tail 20 -Wait"
+Write-Host ("Uninstall:  Unregister-ScheduledTask " + $TaskName + " -Confirm:" + '$false')
