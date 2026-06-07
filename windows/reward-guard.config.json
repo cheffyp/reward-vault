@@ -56,11 +56,17 @@
 
   "allowProcessNames": ["steam", "steamwebhelper", "steamservice", "wallpaper32", "wallpaper64"],
 
-  "_allowPaths_note": "Folders spared even though they sit under a blockPath. Use this for non-game utilities installed inside a Steam library (Wallpaper Engine, DisplayFusion, etc.).",
+  "_allowPaths_note": "Folders spared even though they sit under a blockPath. Use this for non-game utilities (Wallpaper Engine, DisplayFusion, ...) and for productivity 'games' (Chill with You, On-Together). Listed under all three Steam libraries so it works wherever the game is installed.",
   "allowPaths": [
     "C:\\Program Files (x86)\\Steam\\steamapps\\common\\wallpaper_engine",
     "C:\\Program Files (x86)\\Steam\\steamapps\\common\\DisplayFusion",
     "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Borderless Gaming",
-    "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Driver Booster for Steam"
+    "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Driver Booster for Steam",
+    "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Chill with You Lo-Fi Story",
+    "D:\\SteamLibrary\\steamapps\\common\\Chill with You Lo-Fi Story",
+    "E:\\SteamLibrary\\steamapps\\common\\Chill with You Lo-Fi Story",
+    "C:\\Program Files (x86)\\Steam\\steamapps\\common\\On-Together",
+    "D:\\SteamLibrary\\steamapps\\common\\On-Together",
+    "E:\\SteamLibrary\\steamapps\\common\\On-Together"
   ]
 }
