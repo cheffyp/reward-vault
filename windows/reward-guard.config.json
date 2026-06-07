@@ -1,5 +1,5 @@
 {
-  "_README": "Config for reward-guard.ps1 on CHEFFYPC. While the Reward Vault has NO active timer, any process under blockPaths (or named in blockProcessNames) is killed. Any active reward timer (all 3 tiers) unlocks everything. Edit and re-run install-reward-guard.ps1, or just restart the RewardGuard scheduled task, to apply.",
+  "_README": "Config for reward-guard.ps1 on CHEFFYPC. While the Reward Vault has NO active timer, any process under blockPaths (or named in blockProcessNames) is killed, unless spared by allowPaths/allowProcessNames. Any active reward timer (all 3 tiers) unlocks everything. Edit and re-run install-reward-guard.ps1, or restart the RewardGuard scheduled task, to apply.",
 
   "apiUrls": [
     "https://raspberrypi.tail08dd2f.ts.net:3443",
@@ -12,10 +12,11 @@
   "skipCertCheck": false,
   "blockWhenUnreachable": false,
 
+  "_blockPaths_note": "The Steam client (steam.exe) lives in the Steam root and is NOT listed here; only steamapps\\common (the games) is. So Steam itself keeps running while its games are blocked.",
   "blockPaths": [
-    "C:\\Program Files (x86)\\Steam",
-    "D:\\SteamLibrary",
-    "E:\\SteamLibrary",
+    "C:\\Program Files (x86)\\Steam\\steamapps\\common",
+    "D:\\SteamLibrary\\steamapps\\common",
+    "E:\\SteamLibrary\\steamapps\\common",
     "C:\\Games",
     "D:\\Games",
     "E:\\Games",
@@ -34,9 +35,8 @@
     "C:\\Program Files (x86)\\Jagex"
   ],
 
+  "_blockProcessNames_note": "Other launchers/games to kill by name (matched without .exe), wherever they are installed. Steam is intentionally NOT here so it stays open. FFXIV + Dalamud's XIVLauncher are here because XIVLauncher installs under %LOCALAPPDATA% (outside the game folders).",
   "blockProcessNames": [
-    "steam",
-    "steamwebhelper",
     "epicgameslauncher",
     "battle.net",
     "eadesktop",
@@ -46,10 +46,15 @@
     "ubisoftgamelauncher",
     "riotclientservices",
     "leagueclient",
-    "jagexlauncher"
+    "jagexlauncher",
+    "ffxiv_dx11",
+    "ffxiv",
+    "ffxivlauncher",
+    "ffxivboot",
+    "xivlauncher"
   ],
 
-  "allowProcessNames": ["wallpaper32", "wallpaper64"],
+  "allowProcessNames": ["steam", "steamwebhelper", "steamservice", "wallpaper32", "wallpaper64"],
 
   "_allowPaths_note": "Folders spared even though they sit under a blockPath. Use this for non-game utilities installed inside a Steam library (Wallpaper Engine, DisplayFusion, etc.).",
   "allowPaths": [

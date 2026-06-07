@@ -8,7 +8,10 @@
     - re-launches itself every 2 minutes if it was closed (auto-restart),
     - runs hidden, with no time limit, single-instance.
 
-  Re-run after editing reward-guard.config.json to refresh the installed copy.
+  Re-run after editing reward-guard.config.json to refresh the installed copy. It stops a
+  running instance first so the new agent/config actually takes effect.
+
+  Keep this file ASCII-only (Windows PowerShell 5.1 reads .ps1 as ANSI; stray Unicode breaks parsing).
 #>
 [CmdletBinding()]
 param(

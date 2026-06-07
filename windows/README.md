@@ -61,14 +61,15 @@ the task: `Restart-ScheduledTask RewardGuard`.
 | `blockWhenUnreachable` | If the vault can't be reached: `false` = fail open (games allowed), `true` = fail closed (games blocked). Default `false`. See note below. |
 | `skipCertCheck` | Set `true` only if you point `apiUrls` at an HTTPS host with an untrusted cert. The Tailscale name has a valid cert, so leave `false`. |
 | `blockPaths` | Folder prefixes; any process whose `.exe` lives under one is killed while locked. Add other drives/launchers here. |
-| `blockProcessNames` | Launcher process names (no `.exe`) to kill even if outside `blockPaths`. |
+| `blockProcessNames` | Process names (no `.exe`) to kill wherever installed, even outside `blockPaths`. Used for other launchers and for FFXIV + Dalamud's `XIVLauncher` (which installs under `%LOCALAPPDATA%`). |
 | `allowProcessNames` | Process names (no `.exe`) to never kill, even under a block path. |
-| `allowPaths` | Folders to spare even though they're under a `blockPath`. Use for non-game utilities installed inside a Steam library — e.g. Wallpaper Engine, DisplayFusion. These win over `blockPaths`. |
+| `allowPaths` | Folders to spare even though they're under a `blockPath`. For non-game utilities installed inside a Steam library (Wallpaper Engine, DisplayFusion, …). These win over `blockPaths`. |
 
-**Note — utilities inside Steam:** some non-game apps install under `…\Steam\steamapps\common`
-(Wallpaper Engine, DisplayFusion, Borderless Gaming, Driver Booster). The default `allowPaths`
-already spares those. If you have another such utility getting killed, add its folder to
-`allowPaths` (or its process name to `allowProcessNames`) and restart the task.
+**Steam stays open, games don't.** `blockPaths` targets `…\Steam\steamapps\common` (the games),
+not the Steam root — so `steam.exe` keeps running (and `allowProcessNames` lists it explicitly).
+Wallpaper Engine lives inside `steamapps\common`, so it's spared via `allowPaths`. If another
+non-game utility in your Steam library gets killed, add its folder to `allowPaths` (or its
+process name to `allowProcessNames`) and `Restart-ScheduledTask RewardGuard`.
 
 **`blockWhenUnreachable` trade-off:** `false` means if the Pi is off/unreachable, the PC is
 *not* blocked — friendlier (a network blip won't kill a game) but bypassable by cutting the
