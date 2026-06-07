@@ -1,0 +1,28 @@
+{
+  "_README": "Config for reward-guard.sh on the Mac. While the Reward Vault has NO active timer, any process whose executable path is under blockPaths (or whose name is in blockProcessNames) is killed, unless spared by allowPaths/allowProcessNames. Any active reward timer (all 3 tiers) unlocks everything. Only games are killed - the network is never touched. Paths may start with ~ (expands to your home). After editing, restart the agent: launchctl kickstart -k gui/$(id -u)/com.rewardvault.guard",
+
+  "apiUrls": [
+    "https://raspberrypi.tail08dd2f.ts.net:3443",
+    "http://192.168.0.78:3000"
+  ],
+
+  "pollSeconds": 5,
+  "warnMinutes": [10, 5],
+  "warnTimeoutSeconds": 120,
+  "blockWhenUnreachable": false,
+
+  "_blockPaths_note": "Only the Steam games folder. Steam.app lives in /Applications and is NOT here, so the Steam client stays open. Add other game install folders if you have non-Steam games.",
+  "blockPaths": [
+    "~/Library/Application Support/Steam/steamapps/common"
+  ],
+
+  "blockProcessNames": [],
+
+  "_allowPaths_note": "Productivity 'games' to keep runnable even with no timer. Replace the co-op placeholder with the real folder name (must match the folder under steamapps/common exactly).",
+  "allowPaths": [
+    "~/Library/Application Support/Steam/steamapps/common/Chill with You Lo-Fi Story",
+    "~/Library/Application Support/Steam/steamapps/common/On-Together"
+  ],
+
+  "allowProcessNames": ["steam", "steam_osx", "steamwebhelper"]
+}

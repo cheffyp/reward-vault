@@ -243,6 +243,18 @@ appears in the dashboard's **Device access** panel next to the Pi-hole devices �
 `PC · games`, and shown as **offline** if it stops reporting for 30s. Pi-hole devices are
 labelled `· DNS`.
 
+## macOS enforcement (Reward Guard)
+
+Same idea for the Mac, via a bash LaunchAgent instead of PowerShell — see
+[`mac/README.md`](mac/README.md). It kills Steam *games* while no timer is active, leaves the
+Steam client and whitelisted "productivity games" (e.g. Chill with You) running, never touches
+the network, heartbeats to the dashboard, and shows the same 10/5-minute add-time warnings.
+
+**iPad:** Apple does not allow an app/script to terminate or block other apps, so there's no
+equivalent agent. The realistic options are Apple **Screen Time** (manual, via Family Sharing)
+or a custom app built on Apple's Family Controls framework (a separate project). Pi-hole DNS is
+the only automatic lever, and that blocks the internet rather than just games.
+
 ## Customizing
 
 ### Changing rewards
