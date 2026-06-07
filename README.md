@@ -128,6 +128,99 @@ Now it'll start on boot and restart automatically if it crashes.
 
 ---
 
+## Pi-hole network enforcement
+
+The vault can block a device's internet (all DNS) until a reward timer unlocks it. It does
+this through a Pi-hole group called **`RewardLocked`** that carries a `.*` deny-regex —
+any client in that group has every domain blocked.
+
+**How it ties into timers (no separate timer logic):** there's a single
+`reconcileEnforcement()` that derives the desired state from `state.activeTimer` (the one
+source of truth) and applies it. It's called from exactly the points where the timer
+already changes — `use` (start), `cancel`, the per-second expiry checker, and on startup.
+So:
+
+- **No timer running** → every enforced device is in `RewardLocked` (blocked).
+- **A reward's timer starts** → that reward's devices are removed from the group (unblocked).
+- **Timer expires or is cancelled** → the devices go back in the group (blocked).
+- **Reboot mid-timer** → on startup the app reconciles to whatever `state.json` says, so a
+  device is never left wrongly blocked/unblocked.
+
+Changes take effect immediately — modifying group/client/regex membership via the Pi-hole
+API reloads FTL's lists live (verified: a query is blocked/allowed within ~1s, no
+`pihole restartdns` needed). Existing group memberships (e.g. a separate `FoodBlocker`
+group) are preserved — only the `RewardLocked` membership is toggled.
+
+### Permission model — why the API + app password (not sudo)
+
+The app runs as a normal user and **never uses sudo at runtime**. It talks to the local
+Pi-hole v6 REST API (`http://localhost:8082`) using a dedicated **application password**
+(Pi-hole's revocable, API-only credential — separate from your web-admin login).
+
+Why this over a sudoers entry:
+- No elevated privileges in the running service; if the app or its token is compromised,
+  the blast radius is "can edit Pi-hole groups via the local API," not root.
+- The app password is independently revocable/rotatable without touching your admin login.
+- No brittle sudoers rules to maintain.
+
+The only one-time setup that needed sudo was *minting* the app password (reading
+`/etc/pihole/cli_pw` to authenticate, then storing the hash via `pihole-FTL --config`).
+The secret is stored in `./.env` (git-ignored, mode 600) as `PIHOLE_APP_PASSWORD`. The app
+loads `.env` automatically; systemd can also supply it via `EnvironmentFile`.
+
+To rotate the app password later:
+```bash
+# authenticate with the CLI password, mint a new app password, save its hash
+CLI=$(sudo cat /etc/pihole/cli_pw)
+SID=$(curl -s -X POST http://localhost:8082/api/auth -d "{\"password\":\"$CLI\"}" | grep -o '"sid":"[^"]*"' | cut -d'"' -f4)
+APP=$(curl -s http://localhost:8082/api/auth/app -H "sid: $SID")
+HASH=$(echo "$APP" | python3 -c "import sys,json;print(json.load(sys.stdin)['app']['hash'])")
+PW=$(echo "$APP" | python3 -c "import sys,json;print(json.load(sys.stdin)['app']['password'])")
+sudo pihole-FTL --config webserver.api.app_pwhash "$HASH"
+printf 'PIHOLE_API_URL=http://localhost:8082\nPIHOLE_APP_PASSWORD=%s\n' "$PW" > ~/reward-vault/.env
+chmod 600 ~/reward-vault/.env
+sudo systemctl restart reward-vault
+```
+
+### Configuring which devices each reward unlocks
+
+Edit `enforcement.json`. Identify devices by **MAC** (recommended — survives IP changes) or
+IP. The `rewardId` keys must match the `id`s in the `REWARDS` array in `server.js`.
+
+```json
+{
+  "groupName": "RewardLocked",
+  "rewards": {
+    "handheld": { "label": "The Handheld Pass", "devices": [
+      { "name": "Steam Deck", "id": "B0:0C:9D:93:D6:DD" },
+      { "name": "Switch 2",   "id": "E0:EF:BF:53:15:7B" }
+    ]},
+    "grinder":  { "label": "The Grinder's Fee", "devices": [] },
+    "raid":     { "label": "High-End Raid Ticket", "devices": [] }
+  }
+}
+```
+
+After editing, apply it without a full restart:
+```bash
+curl -X POST http://localhost:3000/api/enforcement/reconcile
+```
+
+### Status endpoints
+
+- `GET /api/state` now includes an `enforcement` object (cached, cheap — safe for the
+  3s dashboard poll) listing each device and whether it's `locked`.
+- `GET /api/enforcement` — the same snapshot on its own.
+- `POST /api/enforcement/reconcile` — reload `enforcement.json` and force a live re-sync.
+
+Each device entry looks like:
+```json
+{ "name": "Steam Deck", "id": "B0:0C:9D:93:D6:DD", "rewards": ["handheld"], "locked": true, "ok": true }
+```
+
+If Pi-hole is unreachable, enforcement fails **soft**: timers and rewards keep working,
+and `enforcement.lastError` / `reachable` report the problem.
+
 ## Customizing
 
 ### Changing rewards
