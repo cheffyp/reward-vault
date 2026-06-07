@@ -11,12 +11,16 @@
   "warnTimeoutSeconds": 120,
   "blockWhenUnreachable": false,
 
-  "_blockPaths_note": "Only the Steam games folder. Steam.app lives in /Applications and is NOT here, so the Steam client stays open. Add other game install folders if you have non-Steam games.",
+  "_blockPaths_note": "Steam games folder (Steam.app lives in /Applications and is NOT here, so the client stays open), plus XIV on Mac's app bundle and data dir so the Wine-run FFXIV process is caught wherever it execs from. Add other game folders if needed.",
   "blockPaths": [
-    "~/Library/Application Support/Steam/steamapps/common"
+    "~/Library/Application Support/Steam/steamapps/common",
+    "/Applications/XIV on Mac.app",
+    "~/Applications/XIV on Mac.app",
+    "~/Library/Application Support/XIV on Mac"
   ],
 
-  "blockProcessNames": [],
+  "_blockProcessNames_note": "Killed by name wherever installed (matched on the process basename, lowercased). Covers the XIV on Mac launcher and the FFXIV game however Wine names it.",
+  "blockProcessNames": ["xiv on mac", "ffxiv_dx11.exe", "ffxiv_dx11", "ffxiv.exe", "ffxiv", "xivlauncher"],
 
   "_allowPaths_note": "Productivity 'games' to keep runnable even with no timer. Replace the co-op placeholder with the real folder name (must match the folder under steamapps/common exactly).",
   "allowPaths": [
