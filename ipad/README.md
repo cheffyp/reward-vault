@@ -1,65 +1,112 @@
-# iPad enforcement - Apple Screen Time (manual)
+# iPad enforcement via Screen Time - managed from your MacBook
 
-The iPad can't run an agent like the Mac/PC: iPadOS forbids any app from killing or blocking
-other apps. So the iPad is handled with **Apple Screen Time**, managed from a parent device via
-**Family Sharing**. This blocks games while leaving the internet and your productivity apps
-working. It is **manual** - the Reward Vault tracks the reward economy, but a parent grants
-iPad game time when it's earned (Screen Time has no way to read the vault).
+The iPad can't run an agent like the Mac/PC (iPadOS forbids apps from killing/blocking other
+apps), so it's handled with **Apple Screen Time**, set up and managed remotely from your
+**MacBook** through **Family Sharing**. This blocks games while leaving the internet and your
+productivity apps working. It is **manual**: the Reward Vault is the "bank" that tracks earned
+time; a parent opens the lock on the iPad when time is earned (Screen Time can't read the vault).
 
-## One-time setup
+---
 
-1. **Family Sharing + manage remotely (recommended).** On the parent's iPhone/iPad:
-   Settings -> Screen Time -> Family -> (child) so you can configure and lock it from your own
-   device. The child can't change what they can't access.
-2. **Set a Screen Time passcode the child doesn't know** (Screen Time -> Lock Screen Time
-   Settings / a passcode on the child's config). This is what makes it enforcement rather than
-   a suggestion - without it the child can just turn limits off.
+## What you need first (one-time)
 
-## Block games, keep internet + productivity apps
+1. **Your MacBook is signed into YOUR Apple Account** (the one that will be the family
+   organizer).
+2. **The iPad is signed into the CHILD's own Apple Account** - a family member account, not
+   yours. This is the part that makes remote management work. If the iPad is currently on your
+   Apple ID, see **"If the iPad is on your Apple ID"** at the bottom.
 
-Use an **App Limit on the Games category** - it blocks games only, leaving Safari and
-non-game apps untouched:
+---
 
-1. Screen Time -> **App Limits** -> **Add Limit**.
-2. Tick the **Games** category (you can also tick "Entertainment" if some games hide there).
-3. Set the limit to **1 minute**, and turn **Block at End of Limit** ON.
-4. Result: games stop working after ~1 min/day; Safari/web, messaging, and productivity apps
-   keep working normally.
+## 1. Set up Family Sharing + the child account (on the MacBook)
 
-### Allowing your "productivity games" (Chill with You, the co-op game)
+1. Apple menu -> **System Settings** -> click **Family** (top of the sidebar, under your name).
+2. If Family Sharing isn't set up yet, click **Set Up Family** and follow the prompts (you
+   become the **organizer**).
+3. **Add the child:** click **Add Member** ->
+   - **Create Child Account** if they don't have an Apple Account yet (best for a kid - it's
+     created inside your family and is manageable), **or**
+   - **Invite** their existing Apple Account if they already have one.
+4. On the **iPad**: Settings -> sign in as the **child's** Apple Account (if it isn't already).
 
-Check each one's App Store category (its store page -> "Category"):
-- **Not a Game** (e.g. Productivity / Lifestyle / Entertainment): it isn't covered by the Games
-  limit - nothing to do.
-- **Is a Game:** don't limit the whole Games category. Instead create the limit on the
-  *specific* game apps you want blocked (App Limits lets you pick individual apps), and simply
-  don't add the productivity ones. Also add the productivity apps to **Always Allowed**
-  (Screen Time -> Always Allowed) so they stay reachable even during Downtime.
+---
 
-> Note: the exact interaction between "Always Allowed" and category App Limits varies by
-> iPadOS version. If a whitelisted app still gets blocked by the category limit, switch to
-> limiting individual game apps instead of the whole category.
+## 2. Turn on Screen Time for the child (on the MacBook)
 
-## Granting earned time
+1. System Settings -> **Screen Time**.
+2. At the top of the Screen Time panel, use the **family member selector** and pick the
+   **child**. (If you don't see it, the child account / Family Sharing from step 1 isn't fully
+   set up yet.)
+3. Turn on **App & Website Activity** if prompted (Screen Time needs it to enforce limits).
+4. Scroll down and set **Lock Screen Time Settings** -> create a **4-digit Screen Time
+   passcode the child does NOT know**. This is what turns it from a suggestion into
+   enforcement - without it the child can just switch limits off. (Don't reuse the iPad unlock
+   code.)
 
-When the child uses a reward in the vault, a parent grants iPad time one of these ways:
-- On the child's iPad, open the blocked game -> **Ask For More Time** -> approve on the parent
-  device (or enter the Screen Time passcode) -> choose the duration.
-- Or temporarily raise/remove the Games limit, then restore it.
+---
 
-There's no automatic sync to the vault timer - treat the vault as the "bank" and Screen Time
-as the lock the parent opens when time is earned.
+## 3. Block games, keep the internet (on the MacBook, for the child)
 
-## Stricter alternative: Downtime
+Use an **App Limit on the Games category** - it blocks games only and leaves Safari and
+normal apps alone:
 
-If you'd rather block *everything* except a short allow-list: Screen Time -> **Downtime** ->
-schedule it for the whole day, then add only the apps you permit (Safari, productivity apps,
-comms) to **Always Allowed**. Everything else - including all games - is blocked until a parent
-lifts Downtime. This over-blocks non-game apps unless you allow-list them, so the Games App
-Limit above is usually the better fit for "block games, keep the internet."
+1. Screen Time (child selected) -> **App Limits** -> **Add Limit** (the **+**).
+2. Tick the **Games** category. (You can also tick **Entertainment** if some games hide there.)
+3. Set the time to **1 minute**.
+4. Turn on **Block at End of Limit** (so it hard-blocks instead of just warning).
+5. Save. Result: games stop after ~1 min/day; web, messaging, and productivity apps keep
+   working.
 
-## Why not Pi-hole / DNS on the iPad
+---
+
+## 4. Allow your productivity "games"
+
+Check each one's App Store category (its store page -> Information -> Category):
+- **Not a Game** (Productivity / Lifestyle / Entertainment): the Games limit doesn't touch it -
+  nothing to do.
+- **Is a Game:** don't limit the whole Games category. Instead, in **Add Limit**, expand the
+  Games category and pick the **specific game apps** you want blocked (leave the productivity
+  ones unticked). Also add the productivity apps under **Screen Time -> Always Allowed** so
+  they stay reachable.
+
+> The interaction between "Always Allowed" and a category limit varies by iPadOS version. If a
+> whitelisted app still gets blocked by the category limit, switch to limiting individual game
+> apps instead of the whole category.
+
+---
+
+## 5. Granting earned time (when a reward is used in the vault)
+
+Any of these, from your MacBook or iPhone:
+- The child opens the blocked game and taps **Ask For More Time** -> you get a notification ->
+  **Approve** and choose a duration (15 min / 1 hour / all day).
+- Or open Screen Time (child selected) -> App Limits -> the Games limit -> raise the time or
+  toggle the limit off, then restore it afterward.
+
+There's no automatic sync to the vault timer - treat the vault as the ledger and Screen Time as
+the lock you open when time is earned.
+
+---
+
+## Verify it works
+
+1. On the iPad, after the 1-minute games allowance is used up, a game should show the Screen
+   Time block screen ("You've reached your limit").
+2. Safari and your productivity apps still open normally.
+3. From the MacBook, approve an "Ask For More Time" request and confirm the game opens.
+4. Confirm the child **cannot** change limits without the Screen Time passcode.
+
+---
+
+## If the iPad is on YOUR Apple ID (no separate child account)
+
+Remote management needs the child's own account. If you'd rather not move the iPad to a child
+account, set Screen Time up **directly on the iPad** instead - same steps as 2-4 but in the
+iPad's Settings -> Screen Time, and set the Screen Time passcode there. You then manage it on
+the iPad itself (not from the Mac), but blocking and "Ask For More Time" still work.
+
+## Why not Pi-hole / DNS for the iPad
 
 DNS blocking via Pi-hole would be automatic from the vault, but it blocks the *internet*, not
-games specifically, and is bypassable with the VPN profiles an iPad can carry. You asked to
-block games without touching the internet, so Screen Time is the right tool here.
+games specifically, and is bypassable with a VPN profile. You asked to block games without
+touching the internet, so Screen Time is the right tool here.
