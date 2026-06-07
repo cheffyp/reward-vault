@@ -1,5 +1,5 @@
 <#
-  reward-guard.ps1 — Reward Vault enforcement agent for CHEFFYPC.
+  reward-guard.ps1 - Reward Vault enforcement agent for CHEFFYPC.
 
   Polls the Reward Vault API. While NO reward timer is active, it kills any process
   running from a configured game folder (blockPaths) or matching a launcher name
@@ -81,7 +81,7 @@ function Invoke-Heartbeat([string]$base, [bool]$locked) {
 function Now-Ms { [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() }
 
 # =====================================================================
-# WARN MODE — interactive expiry dialog (spawned by the guard loop)
+# WARN MODE - interactive expiry dialog (spawned by the guard loop)
 # =====================================================================
 if ($WarnMode) {
   Add-Type -AssemblyName System.Windows.Forms
@@ -165,6 +165,10 @@ Write-Log "guard starting (poll $($cfg.pollSeconds)s)"
 $blockPaths = @($cfg.blockPaths | ForEach-Object { $_.ToLower().TrimEnd('\') })
 $blockNames = @($cfg.blockProcessNames | ForEach-Object { $_.ToLower() })
 $allowNames = @($cfg.allowProcessNames | ForEach-Object { $_.ToLower() })
+# Folders to spare even when they sit under a blocked path (e.g. Wallpaper Engine, which
+# lives inside the Steam common folder). Safe if the key is absent in an older config.
+$allowPaths = @()
+if ($cfg.allowPaths) { $allowPaths = @($cfg.allowPaths | ForEach-Object { $_.ToLower().TrimEnd('\') }) }
 
 $apiBase = $null
 $lastTimerId = $null
@@ -178,10 +182,11 @@ function Test-ShouldKill($proc) {
   if ($Protected -contains $name) { return $false }
   if ($allowNames -contains $name) { return $false }
   $path = $null
-  try { $path = $proc.Path } catch { return $false }   # protected/system proc — skip
+  try { $path = $proc.Path } catch { return $false }   # protected/system proc - skip
   if (-not $path) { return $false }
   $lp = $path.ToLower()
   if ($lp.StartsWith("c:\windows\")) { return $false }
+  foreach ($ap in $allowPaths) { if ($lp.StartsWith($ap + '\')) { return $false } }  # spared folders win
   if ($blockNames -contains $name) { return $true }
   foreach ($bp in $blockPaths) { if ($lp.StartsWith($bp + '\')) { return $true } }
   return $false

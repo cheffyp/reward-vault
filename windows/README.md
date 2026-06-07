@@ -62,7 +62,13 @@ the task: `Restart-ScheduledTask RewardGuard`.
 | `skipCertCheck` | Set `true` only if you point `apiUrls` at an HTTPS host with an untrusted cert. The Tailscale name has a valid cert, so leave `false`. |
 | `blockPaths` | Folder prefixes; any process whose `.exe` lives under one is killed while locked. Add other drives/launchers here. |
 | `blockProcessNames` | Launcher process names (no `.exe`) to kill even if outside `blockPaths`. |
-| `allowProcessNames` | Names to never kill, even under a block path. |
+| `allowProcessNames` | Process names (no `.exe`) to never kill, even under a block path. |
+| `allowPaths` | Folders to spare even though they're under a `blockPath`. Use for non-game utilities installed inside a Steam library — e.g. Wallpaper Engine, DisplayFusion. These win over `blockPaths`. |
+
+**Note — utilities inside Steam:** some non-game apps install under `…\Steam\steamapps\common`
+(Wallpaper Engine, DisplayFusion, Borderless Gaming, Driver Booster). The default `allowPaths`
+already spares those. If you have another such utility getting killed, add its folder to
+`allowPaths` (or its process name to `allowProcessNames`) and restart the task.
 
 **`blockWhenUnreachable` trade-off:** `false` means if the Pi is off/unreachable, the PC is
 *not* blocked — friendlier (a network blip won't kill a game) but bypassable by cutting the
