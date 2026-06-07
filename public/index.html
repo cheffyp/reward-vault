@@ -623,24 +623,39 @@
       const section = document.getElementById('enforce-section');
       const list = document.getElementById('enforce-list');
       const e = serverState && serverState.enforcement;
-      if (!e || !e.enabled || !e.devices || e.devices.length === 0) {
+      const guards = (serverState && serverState.guards) || [];
+      const piholeDevices = (e && e.enabled && e.devices) ? e.devices : [];
+      if (piholeDevices.length === 0 && guards.length === 0) {
         section.style.display = 'none';
         return;
       }
       section.style.display = 'block';
-      let rows = e.devices.map(d => {
+
+      let rows = '';
+      if (e && e.enabled && !e.reachable) {
+        rows += '<div class="history-item"><span class="lock-tag warn">offline</span>' +
+          '<span style="flex:1; color: var(--text-muted);">Pi-hole unreachable — status may be stale</span></div>';
+      }
+      // Pi-hole (DNS-gated) devices
+      rows += piholeDevices.map(d => {
         let tag;
         if (d.ok === false) tag = '<span class="lock-tag warn">error</span>';
         else if (d.locked) tag = '<span class="lock-tag locked">blocked</span>';
         else tag = '<span class="lock-tag open">unblocked</span>';
         return '<div class="history-item">' + tag +
           '<span style="flex:1;">' + d.name + '</span>' +
-          '<span style="color: var(--text-muted); font-variant-numeric: tabular-nums;">' + d.id + '</span></div>';
+          '<span style="color: var(--text-muted); font-variant-numeric: tabular-nums;">' + d.id + ' · DNS</span></div>';
       }).join('');
-      if (!e.reachable) {
-        rows = '<div class="history-item"><span class="lock-tag warn">offline</span>' +
-          '<span style="flex:1; color: var(--text-muted);">Pi-hole unreachable — status may be stale</span></div>' + rows;
-      }
+      // Process-gated guards (e.g. the Windows PC)
+      rows += guards.map(g => {
+        let tag, note;
+        if (g.stale) { tag = '<span class="lock-tag warn">offline</span>'; note = 'PC · no heartbeat'; }
+        else if (g.locked) { tag = '<span class="lock-tag locked">blocked</span>'; note = 'PC · games'; }
+        else { tag = '<span class="lock-tag open">unblocked</span>'; note = 'PC · games'; }
+        return '<div class="history-item">' + tag +
+          '<span style="flex:1;">' + g.host + '</span>' +
+          '<span style="color: var(--text-muted);">' + note + '</span></div>';
+      }).join('');
       list.innerHTML = rows;
     }
 
