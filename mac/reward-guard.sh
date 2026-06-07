@@ -32,7 +32,8 @@ js_eval() { /usr/bin/osascript -l JavaScript -e 'function run(a){try{var s=JSON.
 cfg_scalar() { js_eval "$CONFIG_JSON" "(s.$1===undefined?'':s.$1)"; }
 cfg_array()  { js_eval "$CONFIG_JSON" "(s.$1||[]).join('\n')"; }
 
-expand_tilde() { case "$1" in "~/"*) printf '%s' "$HOME/${1#~/}";; "~") printf '%s' "$HOME";; *) printf '%s' "$1";; esac; }
+# Quote the ~/ in the # pattern: unquoted, bash tilde-expands it and the strip fails.
+expand_tilde() { case "$1" in "~/"*) printf '%s' "$HOME/${1#"~/"}";; "~") printf '%s' "$HOME";; *) printf '%s' "$1";; esac; }
 lc() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
 POLL="$(cfg_scalar pollSeconds)"; [ -z "$POLL" ] && POLL=5
@@ -44,16 +45,16 @@ HOSTNAME_NICE="$(scutil --get ComputerName 2>/dev/null || hostname)"
 BLOCK_PATHS_F="$SUPPORT_DIR/.blockpaths"; ALLOW_PATHS_F="$SUPPORT_DIR/.allowpaths"
 BLOCK_NAMES_F="$SUPPORT_DIR/.blocknames"; ALLOW_NAMES_F="$SUPPORT_DIR/.allownames"
 : > "$BLOCK_PATHS_F"; : > "$ALLOW_PATHS_F"; : > "$BLOCK_NAMES_F"; : > "$ALLOW_NAMES_F"
-while IFS= read -r p; do [ -n "$p" ] && lc "$(expand_tilde "$p")" >> "$BLOCK_PATHS_F"; done <<EOF
+while IFS= read -r p; do [ -n "$p" ] && printf '%s\n' "$(lc "$(expand_tilde "$p")")" >> "$BLOCK_PATHS_F"; done <<EOF
 $(cfg_array blockPaths)
 EOF
-while IFS= read -r p; do [ -n "$p" ] && lc "$(expand_tilde "$p")" >> "$ALLOW_PATHS_F"; done <<EOF
+while IFS= read -r p; do [ -n "$p" ] && printf '%s\n' "$(lc "$(expand_tilde "$p")")" >> "$ALLOW_PATHS_F"; done <<EOF
 $(cfg_array allowPaths)
 EOF
-while IFS= read -r p; do [ -n "$p" ] && lc "$p" >> "$BLOCK_NAMES_F"; done <<EOF
+while IFS= read -r p; do [ -n "$p" ] && printf '%s\n' "$(lc "$p")" >> "$BLOCK_NAMES_F"; done <<EOF
 $(cfg_array blockProcessNames)
 EOF
-while IFS= read -r p; do [ -n "$p" ] && lc "$p" >> "$ALLOW_NAMES_F"; done <<EOF
+while IFS= read -r p; do [ -n "$p" ] && printf '%s\n' "$(lc "$p")" >> "$ALLOW_NAMES_F"; done <<EOF
 $(cfg_array allowProcessNames)
 EOF
 
@@ -100,7 +101,8 @@ enforce() {
   while read -r pid path; do
     [ -z "$pid" ] && continue
     [ -z "$path" ] && continue
-    name="${path##*/}"
+    name="${path##*/}"      # strip to last forward slash
+    name="${name##*\\}"     # also strip to last backslash (Wine reports Windows paths like Z:\...\ffxiv_dx11.exe)
     lcpath="$(lc "$path")"; lcname="$(lc "$name")"
     case "$lcpath" in /system/*|/usr/*|/applications/steam.app/*) continue;; esac
     in_list "$lcname" "$ALLOW_NAMES_F" && continue
