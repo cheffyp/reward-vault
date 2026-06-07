@@ -1,5 +1,5 @@
 <#
-  reward-guard.ps1 — Reward Vault enforcement agent for CHEFFYPC.
+  reward-guard.ps1 - Reward Vault enforcement agent for CHEFFYPC.
 
   Polls the Reward Vault API. While NO reward timer is active, it kills any process
   running from a configured game folder (blockPaths) or matching a launcher name
@@ -81,7 +81,7 @@ function Invoke-Heartbeat([string]$base, [bool]$locked) {
 function Now-Ms { [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() }
 
 # =====================================================================
-# WARN MODE — interactive expiry dialog (spawned by the guard loop)
+# WARN MODE - interactive expiry dialog (spawned by the guard loop)
 # =====================================================================
 if ($WarnMode) {
   Add-Type -AssemblyName System.Windows.Forms
@@ -178,7 +178,7 @@ function Test-ShouldKill($proc) {
   if ($Protected -contains $name) { return $false }
   if ($allowNames -contains $name) { return $false }
   $path = $null
-  try { $path = $proc.Path } catch { return $false }   # protected/system proc — skip
+  try { $path = $proc.Path } catch { return $false }   # protected/system proc - skip
   if (-not $path) { return $false }
   $lp = $path.ToLower()
   if ($lp.StartsWith("c:\windows\")) { return $false }
