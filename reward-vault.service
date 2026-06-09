@@ -1,6 +1,10 @@
 [Unit]
 Description=Reward Vault Backend
-After=network.target
+# Start after Pi-hole's API is up. Without this the app can run its first reconcile
+# a couple of seconds before pihole-FTL is listening, record "fetch failed", and show
+# a stale "Pi-hole unreachable" status until something triggers another reconcile.
+After=network.target pihole-FTL.service
+Wants=pihole-FTL.service
 
 [Service]
 Type=simple

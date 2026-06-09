@@ -197,6 +197,14 @@ function checkTimerExpiry() {
 }
 setInterval(checkTimerExpiry, 1000);
 
+// Periodic best-effort reconcile. Re-asserts desired Pi-hole state and, crucially,
+// self-heals a transient failure (e.g. Pi-hole was restarting when we last tried) —
+// otherwise a single "fetch failed" would stick until the next user action.
+const RECONCILE_INTERVAL_MS = parseInt(process.env.RECONCILE_INTERVAL_MS || '60000', 10);
+if (pihole.ENABLED && RECONCILE_INTERVAL_MS > 0) {
+  setInterval(() => reconcileEnforcement('periodic'), RECONCILE_INTERVAL_MS);
+}
+
 // ============ HABITICA CLIENT ============
 async function habiticaFetch(url, options = {}) {
   const res = await fetch(url, {
