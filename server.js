@@ -46,6 +46,10 @@ const REWARDS = [
   { id: 'raid',     name: 'High-End Raid Ticket', cost: 50, defaultMins: 60, desc: 'One raid lockout',       editable: true  }
 ];
 
+// Cancelling within this window of starting refunds the reward to the vault (covers mis-clicks).
+// After it, the reward is considered spent — cancel just ends the session, no refund.
+const REFUND_GRACE_MS = 5 * 60 * 1000;
+
 const DATA_DIR = path.join(__dirname, 'data');
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
 
@@ -395,14 +399,19 @@ app.post('/api/use', (req, res) => {
 app.post('/api/cancel', (req, res) => {
   if (!state.activeTimer) return res.status(409).json({ ok: false, error: 'no active timer' });
   const cancelled = state.activeTimer;
-  state.stacks[cancelled.rewardId] = (state.stacks[cancelled.rewardId] || 0) + 1;
-  // Remove the corresponding 'use' entry from history (most recent matching)
-  const idx = state.history.findIndex(h => h.type === 'use' && h.rewardId === cancelled.rewardId && h.timestamp === cancelled.startedAt);
-  if (idx >= 0) state.history.splice(idx, 1);
+  // Only refund if cancelled within the grace window. After that the reward is spent, so we
+  // also leave the original 'use' entry in history (it was a real session, not a mis-click).
+  const refunded = (Date.now() - cancelled.startedAt) < REFUND_GRACE_MS;
+  if (refunded) {
+    state.stacks[cancelled.rewardId] = (state.stacks[cancelled.rewardId] || 0) + 1;
+    // Remove the corresponding 'use' entry from history (most recent matching)
+    const idx = state.history.findIndex(h => h.type === 'use' && h.rewardId === cancelled.rewardId && h.timestamp === cancelled.startedAt);
+    if (idx >= 0) state.history.splice(idx, 1);
+  }
   state.activeTimer = null;
   saveState();
   reconcileEnforcement('timer-cancel');  // re-lock the reward's devices
-  res.json({ ok: true });
+  res.json({ ok: true, refunded });
 });
 
 // Extend the currently-running timer by consuming another reward from the vault.
