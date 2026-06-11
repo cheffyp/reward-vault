@@ -87,11 +87,14 @@
     .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); padding: 12px 20px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-md); font-size: 14px; box-shadow: 0 4px 16px rgba(0,0,0,0.15); z-index: 200; max-width: 90vw; animation: toastIn 0.25s ease; }
     .toast.success { border-color: var(--success); color: var(--success-text); background: var(--success-bg); }
     .toast.error { border-color: var(--danger); color: var(--danger-text); background: var(--danger-bg); }
+    .toast.warn { border-color: var(--gold); color: var(--gold-text); background: var(--gold-bg); }
     @keyframes toastIn { from { transform: translate(-50%, 20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
 
     .timer-panel { background: var(--surface-2); border-radius: var(--radius-lg); padding: 24px 16px; margin-bottom: 20px; text-align: center; transition: background 0.3s ease; }
     .timer-panel.idle { color: var(--text-faint); font-size: 14px; padding: 16px; }
     .timer-panel.alerting { background: var(--danger-bg); animation: alertPulse 1s ease-in-out infinite; }
+    .timer-panel.warning { background: var(--gold-bg); }
+    .timer-warn-note { font-size: 13px; color: var(--gold-text); font-weight: 500; margin: 0 0 12px; }
     @keyframes alertPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.01); } }
     .timer-name { font-size: 13px; color: var(--text-muted); margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.5px; }
     .timer-display { font-size: 56px; font-weight: 500; font-variant-numeric: tabular-nums; margin: 0 0 16px; letter-spacing: -2px; line-height: 1; }
@@ -207,6 +210,9 @@
     const ALERT_DURATION_MS = 30000;
     const TITLE_FLASH_INTERVAL_MS = 800;
     const ORIGINAL_TITLE = 'Reward Vault';
+    // Warn the player while a timer is still running so they can add more time before it locks.
+    // Sorted high→low; each fires once per timer when the countdown crosses into its band.
+    const WARN_MINUTES = [10, 5];
 
     // ============ STATE ============
     let serverState = null;        // last response from /api/state
@@ -220,6 +226,9 @@
     let cancelInFlight = false;
     let dismissInFlight = false;
     let extendInFlight = false;
+
+    // Warning tracking — keyed by `${timerId}:${threshold}` so each band fires once per timer
+    let warnedKeys = new Set();
 
     // Alert tracking — local-only, prevents re-alerting for the same timer
     let alertedTimerIds = new Set();
@@ -396,6 +405,42 @@
       }
     }
 
+    // ============ TIME-LEFT WARNINGS ============
+    // Fire a chime + toast as the running timer crosses 10 and 5 min left, so there's a
+    // chance to add more time before it locks. Band logic (remaining within (lower, th])
+    // means a timer that *starts* below a threshold pops that band once, not every band.
+    function checkWarnings() {
+      const t = serverState && serverState.activeTimer;
+      if (!t) return;
+      const remainingMs = t.endsAt - Date.now();
+      if (remainingMs <= 0) return;
+      const remainMin = Math.floor(remainingMs / 60000);
+      for (let i = 0; i < WARN_MINUTES.length; i++) {
+        const th = WARN_MINUTES[i];
+        const lower = i < WARN_MINUTES.length - 1 ? WARN_MINUTES[i + 1] : -1;
+        const key = t.id + ':' + th;
+        if (remainMin <= th && remainMin > lower && !warnedKeys.has(key)) {
+          warnedKeys.add(key);
+          fireWarning(th);
+        }
+      }
+    }
+
+    function fireWarning(threshold) {
+      getAudioContext();
+      playChime();
+      tryVibrate();
+      showToast('⏰ ~' + threshold + ' min of game time left — add more time before it locks', 'warn');
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try {
+          new Notification('Reward Vault', {
+            body: 'About ' + threshold + ' minutes of game time left.',
+            tag: 'vault-warn-' + threshold
+          });
+        } catch (e) {}
+      }
+    }
+
     // ============ ACTIONS ============
     function tryBuy(rewardId) {
       if (confirmingBuyId === rewardId) {
@@ -469,8 +514,10 @@
       if (cancelInFlight) return;
       cancelInFlight = true;
       try {
-        await apiPost('/api/cancel');
-        showToast('Timer cancelled — reward returned to vault', 'success');
+        const data = await apiPost('/api/cancel');
+        showToast(data.refunded
+          ? 'Timer cancelled — reward returned to vault'
+          : 'Timer cancelled — reward already spent (no refund)', 'success');
         await poll();
       } catch (e) {
         showToast('Cancel failed: ' + e.message, 'error');
@@ -579,7 +626,12 @@
         const mins = Math.floor(remaining / 60000);
         const secs = Math.floor((remaining % 60000) / 1000);
         const display = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
-        panel.className = 'timer-panel';
+        // Highlight the panel once we're inside the highest warning band (≤10 min left).
+        const warning = remaining > 0 && remaining <= WARN_MINUTES[0] * 60000;
+        panel.className = warning ? 'timer-panel warning' : 'timer-panel';
+        const warnNote = warning
+          ? '<p class="timer-warn-note">⏰ Running low — add more time below to keep going.</p>'
+          : '';
         const extendBtns = (serverState.rewards || [])
           .filter(r => (serverState.stacks[r.id] || 0) > 0)
           .map(r => {
@@ -589,8 +641,9 @@
           }).join('');
         panel.innerHTML =
           '<p class="timer-name">' + t.rewardName + '</p>' +
-          '<p class="timer-display">' + display + '</p>' +
+          '<p class="timer-display"' + (warning ? ' style="color: var(--gold-text);"' : '') + '>' + display + '</p>' +
           '<div class="timer-progress"><div class="timer-bar" style="width: ' + pct.toFixed(1) + '%;"></div></div>' +
+          warnNote +
           '<div class="timer-controls">' + extendBtns +
             '<button class="timer-btn danger" id="cancel-timer"' + (cancelInFlight ? ' disabled' : '') + '>' + (cancelInFlight ? 'Cancelling…' : 'Cancel') + '</button>' +
           '</div>';
@@ -739,7 +792,7 @@
     setInterval(() => { if (connected && !document.hidden) fetchGold(); }, 60000);
     // Tick at 1s for smooth countdown rendering between polls
     tickInterval = setInterval(() => {
-      if (serverState && serverState.activeTimer) renderTimer();
+      if (serverState && serverState.activeTimer) { checkWarnings(); renderTimer(); }
     }, 1000);
   })();
   </script>
