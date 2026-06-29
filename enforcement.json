@@ -4,10 +4,7 @@
   "rewards": {
     "handheld": {
       "label": "The Handheld Pass",
-      "devices": [
-        { "name": "Steam Deck", "id": "B0:0C:9D:93:D6:DD" },
-        { "name": "Switch 2", "id": "E0:EF:BF:53:15:7B" }
-      ]
+      "devices": []
     },
     "grinder": {
       "label": "The Grinder's Fee",
