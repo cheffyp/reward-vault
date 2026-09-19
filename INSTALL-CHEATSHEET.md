@@ -57,6 +57,29 @@ tail -f ~/Library/Application\ Support/RewardGuard/reward-guard.log
 
 ---
 
+## Linux (CheffyLinux - Bazzite/KDE)
+
+Run as the user being enforced - **not** with sudo.
+
+```bash
+# 1. get the files
+scp -r admin@raspberrypi.tail08dd2f.ts.net:/home/admin/reward-vault/linux ~/
+cd ~/linux
+
+# 2. install (per-user systemd unit; starts with the graphical session, auto-restarts)
+bash install-reward-guard.sh
+
+# verify
+tail -f ~/.local/share/RewardGuard/reward-guard.log
+```
+- Steam stays open; Steam games, Lutris games (`~/Games`), FFXIV/XIVLauncher, and
+  Battle.net + its games (via Faugus, `~/Faugus`) are killed when locked.
+- Edit config later: `~/.local/share/RewardGuard/reward-guard.config.json` then
+  `systemctl --user restart reward-guard`
+- Uninstall: `systemctl --user disable --now reward-guard; rm -f ~/.config/systemd/user/reward-guard.service; rm -rf ~/.local/share/RewardGuard`
+
+---
+
 ## iPad (Apple Screen Time - manual)
 
 No agent possible; set this up once from the **parent** device via Family Sharing.
@@ -80,8 +103,10 @@ Full detail: [`ipad/README.md`](ipad/README.md).
 |---|---|---|---|
 | Windows | PowerShell scheduled task | `C:\ProgramData\RewardGuard\reward-guard.config.json` | `Restart-ScheduledTask RewardGuard` |
 | Mac | bash LaunchAgent | `~/Library/Application Support/RewardGuard/reward-guard.config.json` | `launchctl kickstart -k gui/$(id -u)/com.rewardvault.guard` |
+| Linux (CheffyLinux) | systemd --user service | `~/.local/share/RewardGuard/reward-guard.config.json` | `systemctl --user restart reward-guard` |
 | iPad | Apple Screen Time | on-device (parent managed) | n/a (manual) |
 | Steam Deck / Switch 2 | Pi-hole group | `enforcement.json` on the Pi | `curl -X POST http://localhost:3000/api/enforcement/reconcile` |
 
-All four show up in the dashboard's **Device access** panel (PC/Mac heartbeat their lock state;
-Pi-hole devices show their DNS lock state). The iPad won't appear there (Screen Time is manual).
+All five show up in the dashboard's **Device access** panel (PC/Mac/Linux heartbeat their lock
+state; Pi-hole devices show their DNS lock state). The iPad won't appear there (Screen Time is
+manual).

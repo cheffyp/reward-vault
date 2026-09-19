@@ -18,6 +18,15 @@ Environment="PORT=3000"
 # Pi-hole enforcement secret (the app also auto-loads ./.env; this is belt-and-suspenders).
 # The leading '-' makes it optional so the service still starts without the file.
 EnvironmentFile=-/home/pi/reward-vault/.env
+# Auto-pricing (see README.md "Auto-pricing") — all optional, shown with their defaults.
+# Starts safe: PRICING_DRY_RUN defaults to true, so nothing here is required to get going.
+#Environment="PRICING_TARGET_HOURS_PER_DAY=1.5"
+#Environment="PRICING_TRAILING_WINDOW_DAYS=7"
+#Environment="PRICING_ESCALATION_FACTOR=1.15"
+#Environment="PRICING_CLAMP_PCT=20"
+#Environment="PRICING_POLL_INTERVAL_MINUTES=20"
+#Environment="PRICING_DAY_START_HOUR=0"
+#Environment="PRICING_DRY_RUN=false"
 ExecStart=/usr/bin/node server.js
 Restart=on-failure
 RestartSec=5

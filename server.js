@@ -10,6 +10,9 @@
  *   POST /api/dismiss-alert         → dismiss the pending alert (any device)
  *   POST /api/raid-duration         → update raid ticket duration
  *   GET  /api/gold                  → just the gold balance from Habitica
+ *   GET  /api/pricing-status        → auto-pricing: base price, trailing avg, per-reward status
+ *   GET  /api/gold-history          → raw gold_log rows (see gold-tracker.js)
+ *   GET  /api/purchases             → raw purchase_log rows (see gold-tracker.js)
  *
  * Static files in ./public/ are served at /
  */
@@ -32,12 +35,13 @@ const path = require('path');
 })();
 
 const pihole = require('./pihole');
+const habitica = require('./habitica');
+const goldTracker = require('./gold-tracker');
 
 // ============ CONFIG ============
 const PORT = process.env.PORT || 3000;
-const HABITICA_USER_ID = process.env.HABITICA_USER_ID || '';
-const HABITICA_API_KEY = process.env.HABITICA_API_KEY || '';
-const X_CLIENT = HABITICA_USER_ID + '-RewardVaultPi';
+const HABITICA_USER_ID = habitica.HABITICA_USER_ID;
+const HABITICA_API_KEY = habitica.HABITICA_API_KEY;
 
 // Hardcoded reward catalog (must match Habitica reward names exactly)
 const REWARDS = [
@@ -60,7 +64,16 @@ const initialState = {
   history: [],
   activeTimer: null,    // { id, rewardId, rewardName, startedAt, endsAt, totalMs, duration }
   pendingAlert: null,   // { timerId, rewardName, duration, completedAt }
-  raidDuration: 60
+  raidDuration: 60,
+  // Current auto-pricing settings (the append-only gold/purchase ledger lives in SQLite,
+  // data/vault.db — this is just "what did the nightly job last decide").
+  pricing: {
+    status: 'warming-up',          // 'warming-up' | 'active'
+    basePricePerHour: null,        // last computed & clamped gp/hour
+    rewardCost: { handheld: null, grinder: null, raid: null },
+    trailingAvgDailyGold: null,
+    lastRepricedAt: null
+  }
 };
 
 let state;
@@ -78,6 +91,9 @@ function loadState() {
       state = Object.assign({}, initialState, parsed);
       // Make sure stacks has all current reward ids
       REWARDS.forEach(r => { if (!(r.id in state.stacks)) state.stacks[r.id] = 0; });
+      // Deep-merge pricing (parsed may predate this field, or predate a reward id)
+      state.pricing = Object.assign({}, initialState.pricing, state.pricing);
+      state.pricing.rewardCost = Object.assign({}, initialState.pricing.rewardCost, state.pricing.rewardCost);
       console.log('[state] loaded from disk');
     } catch (e) {
       console.error('[state] failed to parse state.json, starting fresh', e);
@@ -210,58 +226,46 @@ if (pihole.ENABLED && RECONCILE_INTERVAL_MS > 0) {
 }
 
 // ============ HABITICA CLIENT ============
-async function habiticaFetch(url, options = {}) {
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      'x-api-user': HABITICA_USER_ID,
-      'x-api-key': HABITICA_API_KEY,
-      'x-client': X_CLIENT,
-      'Content-Type': 'application/json',
-      ...(options.headers || {})
-    }
-  });
-  const text = await res.text();
-  let body;
-  try { body = JSON.parse(text); } catch { body = { raw: text }; }
-  if (!res.ok) {
-    const msg = (body && body.message) || ('HTTP ' + res.status);
-    const err = new Error(msg);
-    err.status = res.status;
-    err.body = body;
-    throw err;
-  }
-  return body;
+// Low-level fetch/auth lives in ./habitica.js (shared with gold-tracker.js's poller and
+// nightly re-pricer). getGoldBalance() is used directly by the /api/gold endpoint below.
+const getGoldBalance = habitica.getGoldBalance;
+
+// Reward hours, for the nightly re-pricer's price = base_price_per_hour * hours formula.
+// Raid's duration is user-editable (state.raidDuration), so this must read it live.
+function getRewardMeta() {
+  return REWARDS.map(r => ({
+    id: r.id,
+    name: r.name,
+    hours: (r.editable ? state.raidDuration : r.defaultMins) / 60
+  }));
 }
 
-async function getGoldBalance() {
-  const data = await habiticaFetch('https://habitica.com/api/v3/user?userFields=stats.gp');
-  return Math.floor(data.data.stats.gp);
-}
-
-async function buyHabiticaReward(rewardName) {
-  // Find reward by exact name
-  const tasksData = await habiticaFetch('https://habitica.com/api/v3/tasks/user?type=rewards');
-  const reward = tasksData.data.find(t => t.text === rewardName);
-  if (!reward) throw new Error('reward not found in Habitica: ' + rewardName);
+async function buyHabiticaReward(rewardId, rewardName) {
+  const task = await habitica.getRewardTask(rewardName);
+  const plan = goldTracker.prepareForPurchase(rewardId, rewardName, task);
+  const chargeValue = plan.dryRun ? task.value : plan.effectiveCost;
 
   // Check affordability (server-side guard — the buy will fail anyway if short, but better message)
-  const userData = await habiticaFetch('https://habitica.com/api/v3/user?userFields=stats.gp');
-  const currentGold = userData.data.stats.gp;
-  if (currentGold < reward.value) {
-    throw new Error(`insufficient gold (have ${Math.floor(currentGold)}, need ${reward.value})`);
+  const currentGold = await habitica.getGoldBalance();
+  if (currentGold < chargeValue) {
+    throw new Error(`insufficient gold (have ${currentGold}, need ${chargeValue})`);
+  }
+
+  // Push the escalated/repriced value to Habitica before scoring, so the deduction matches
+  // what we're about to log. Skipped entirely in dry-run mode (PRICING_DRY_RUN).
+  if (plan.shouldSetValue) {
+    await habitica.setTaskValue(task.id, plan.effectiveCost);
   }
 
   // Score it up — deducts gold for custom rewards
-  const scoreData = await habiticaFetch(
-    `https://habitica.com/api/v3/tasks/${reward.id}/score/up`,
-    { method: 'POST' }
-  );
+  const scoreData = await habitica.scoreUp(task.id);
+  const gpAfter = Math.floor(scoreData.data.gp || 0);
 
-  return {
-    cost: reward.value,
-    gold: Math.floor(scoreData.data.gp || 0)
-  };
+  // Log the purchase (exact — we set the price) and roll "last known gp" forward so the
+  // next poll's delta reflects only newly earned gold, not this spend.
+  goldTracker.recordPurchase({ rewardName, taskId: task.id, cost: chargeValue, gpAfter });
+
+  return { cost: chargeValue, gold: gpAfter };
 }
 
 // ============ EXPRESS APP ============
@@ -283,8 +287,16 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/api/state', (req, res) => {
   // Lightweight check before responding (catches expiry between 1s ticks)
   checkTimerExpiry();
+  // Overlay the live auto-priced (escalation-adjusted) cost where we've computed one, so the
+  // dashboard reflects what a purchase would actually charge right now. No network call —
+  // purely from in-memory/DB state, safe for the 3s poll. Falls back to the static default
+  // in REWARDS during the warm-up period before any base price has been computed.
+  const rewardsWithLiveCost = REWARDS.map(r => {
+    const effective = goldTracker.getEffectivePriceForDisplay(r.id, r.name);
+    return effective != null ? { ...r, cost: effective } : r;
+  });
   res.json({
-    rewards: REWARDS,
+    rewards: rewardsWithLiveCost,
     stacks: state.stacks,
     history: state.history.slice(0, 50),
     activeTimer: state.activeTimer,
@@ -336,13 +348,34 @@ app.get('/api/gold', async (req, res) => {
   }
 });
 
+// ----- Auto-pricing inspection -----
+app.get('/api/gold-history', (req, res) => {
+  const limit = Math.min(2000, parseInt(req.query.limit, 10) || 200);
+  res.json({ ok: true, rows: goldTracker.getGoldHistory(limit) });
+});
+
+app.get('/api/purchases', (req, res) => {
+  const limit = Math.min(2000, parseInt(req.query.limit, 10) || 200);
+  res.json({ ok: true, rows: goldTracker.getPurchaseHistory(limit) });
+});
+
+app.get('/api/pricing-status', async (req, res) => {
+  try {
+    const status = await goldTracker.getPricingStatus(getRewardMeta);
+    res.json({ ok: true, ...status });
+  } catch (e) {
+    console.error('[pricing-status] failed:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 app.post('/api/buy', async (req, res) => {
   const { rewardId } = req.body || {};
   const reward = REWARDS.find(r => r.id === rewardId);
   if (!reward) return res.status(400).json({ ok: false, error: 'unknown reward' });
 
   try {
-    const result = await buyHabiticaReward(reward.name);
+    const result = await buyHabiticaReward(rewardId, reward.name);
     state.stacks[rewardId] = (state.stacks[rewardId] || 0) + 1;
     state.history.unshift({
       type: 'buy',
@@ -464,6 +497,11 @@ const http = require('http');
 const https = require('https');
 
 loadState();
+
+// Wire the gold tracker to the same state.json persistence everything else uses, then
+// start its poller + nightly re-pricer.
+goldTracker.init({ getState: () => state, saveState });
+goldTracker.start(getRewardMeta);
 
 // Load device map and reconcile Pi-hole to current state. This handles the
 // reboot-mid-timer case (req. 4): loadState() already expired any stale timer, so the

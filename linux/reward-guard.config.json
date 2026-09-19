@@ -1,0 +1,34 @@
+{
+  "_README": "Config for reward-guard.sh on CheffyLinux (bazzite/KDE). While the Reward Vault has NO active timer, any process whose executable path is under blockPaths (or whose name is in blockProcessNames) is killed, unless spared by allowPaths/allowProcessNames. Any active reward timer (all 3 tiers) unlocks everything. Only games are killed - the network is never touched. Paths may start with ~ (expands to your home). After editing, reload: systemctl --user restart reward-guard",
+
+  "deviceName": "CheffyLinux",
+
+  "apiUrls": [
+    "https://raspberrypi.tail08dd2f.ts.net:3443",
+    "http://192.168.0.78:3000"
+  ],
+
+  "pollSeconds": 5,
+  "warnMinutes": [10, 5],
+  "warnTimeoutSeconds": 120,
+  "blockWhenUnreachable": false,
+
+  "_blockPaths_note": "Native Steam only (confirmed no Flatpak Steam on this box) - single library at ~/.local/share/Steam. If you add another library later (external drive/SD card), check ~/.local/share/Steam/steamapps/libraryfolders.vdf and add its .../steamapps/common path here. ~/Games covers Lutris's default install location (Lutris is installed here) - adjust/remove if you install Lutris games to a different folder. ~/Faugus is Faugus Launcher's default Wine-prefix root (its PREFIXES_DIR) - Battle.net and every game it in turn launches (Overwatch, Diablo, WoW, etc.) all run inside the same prefix under here, and any other non-Steam game added in Faugus gets its own subfolder here too, so this one entry covers all of it. If Settings -> 'Default Prefixes Location' in Faugus was changed from the default, update this to match (or add the custom path in addition).",
+  "blockPaths": [
+    "~/.local/share/Steam/steamapps/common",
+    "~/Games",
+    "~/Faugus"
+  ],
+
+  "_blockProcessNames_note": "Killed by process name (as seen in /proc/<pid>/comm, 15-char Linux limit) wherever it runs - covers FFXIV played through XIVLauncher (installed here as the dev.goats.xivlauncher Flatpak) and Battle.net, where the real game executable is hidden inside a Wine/Proton prefix. Faugus/Battle.net games are also matched by WINEPREFIX now (see blockPaths' ~/Faugus entry), which covers every Battle.net game generically - these two entries are just a name-based backstop for the launcher itself. If FFXIV or the launcher doesn't die when locked, run `ps -eo pid,comm | grep -i xiv` (or `battle`) while it's running and add whatever name shows up.",
+  "blockProcessNames": ["ffxiv_dx11.exe", "ffxiv_dx11", "ffxiv.exe", "ffxiv", "xivlauncher.exe", "xivlauncher", "xivlauncher.core", "xivlauncher.cor", "battle.net.exe", "battle.net", "agent.exe"],
+
+  "_allowPaths_note": "Non-game software living under a blockPath, plus productivity 'games' to keep runnable even with no timer. wallpaper_engine matches the Steam app you have installed.",
+  "allowPaths": [
+    "~/.local/share/Steam/steamapps/common/wallpaper_engine",
+    "~/.local/share/Steam/steamapps/common/Chill with You Lo-Fi Story",
+    "~/.local/share/Steam/steamapps/common/On-Together"
+  ],
+
+  "allowProcessNames": ["steam", "steam.sh", "steamwebhelper", "gamescope", "gamescopereaper"]
+}

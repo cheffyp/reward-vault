@@ -1,0 +1,13 @@
+[Unit]
+Description=Reward Vault enforcement agent
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/bin/bash __SCRIPT__
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target

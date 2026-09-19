@@ -128,6 +128,68 @@ Now it'll start on boot and restart automatically if it crashes.
 
 ---
 
+## Auto-pricing (keeping gold from buying too much game time)
+
+Habitica's party quests/drops can generate gold much faster than intended, which makes the
+custom rewards affordable far more often than the "1-2 hours of game time per day" they're
+meant to gate. `gold-tracker.js` re-prices them automatically instead of relying on eyeballing it.
+
+**Why it has to work by logging, not backfilling** — Habitica's API has no gold ledger;
+`GET /api/v3/user` only ever returns a live snapshot (`stats.gp`). So the vault builds its own
+ledger going forward, in `data/vault.db` (SQLite, git-ignored like the rest of `data/`):
+- `gold_log(id, ts, gp, delta, source)` — every gp change, `source` is `'poll'` (a periodic
+  snapshot diffed against the last known value — this is how passive/party-earned gold gets
+  measured) or `'purchase'` (a Reward Vault purchase — exact, since we set the price)
+- `purchase_log(id, ts, reward_name, task_id, cost, gp_after)` — one row per purchase
+
+**Nightly re-pricing** (at your configured day-start hour, default midnight):
+1. Trailing `N`-day average of daily gold *earned* (`gold_log` rows where `source='poll'` and
+   `delta > 0` — a negative poll delta means gold left some other way, e.g. spent directly in
+   the Habitica app, and isn't counted as earned)
+2. `base_price_per_hour = trailing_avg_daily_gold / target_hours_per_day`
+3. Each reward's price = `base_price_per_hour × that reward's hours` (0.5h handheld, 1h
+   grinder, raid's current `raidDuration`)
+4. The day-over-day change in `base_price_per_hour` is clamped to `±price_clamp_pct` so one
+   lucky/unlucky day doesn't swing prices wildly
+5. For the first `trailing_window_days` days there's not enough history — it just logs the
+   partial trailing average and leaves prices alone
+
+**Same-day escalation** — on top of the base price, each purchase of a reward beyond the
+first *that Habitica day* multiplies its price by `escalation_factor ^ purchases_today`. This
+applies from day one (it doesn't wait on the nightly job's history requirement), so a windfall
+day can't buy an unlimited amount of game time in one sitting even before 7 days of data exist.
+
+**Dry-run mode** (`PRICING_DRY_RUN`, default **true**) — both the nightly re-price and the
+escalation price bump compute and log everything but never call
+`PUT /api/v3/tasks/:id` to actually change a reward's Habitica price. Purchases still go
+through at whatever price is currently configured in Habitica. Watch `GET /api/pricing-status`
+for a few days, then set `PRICING_DRY_RUN=false` once the numbers look right.
+
+**Config** (env vars — set via the systemd unit's `Environment=` lines or `.env`, same as
+everything else):
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `PRICING_TARGET_HOURS_PER_DAY` | `1.5` | Middle of your target range; base price is tuned to this |
+| `PRICING_TRAILING_WINDOW_DAYS` | `7` | Days averaged for the base price, and days of history required before auto-adjusting |
+| `PRICING_ESCALATION_FACTOR` | `1.15` | Same-day price multiplier per purchase beyond the first |
+| `PRICING_CLAMP_PCT` | `20` | Max day-over-day % change allowed in `base_price_per_hour` |
+| `PRICING_POLL_INTERVAL_MINUTES` | `20` | How often to poll `stats.gp` (floor of 5; stay well under Habitica's ~30 req/min limit) |
+| `PRICING_DAY_START_HOUR` | `0` | Local hour matching your Habitica "Day Start" preference — governs both the nightly job's timing and the escalation reset |
+| `PRICING_DRY_RUN` | `true` | Set to `false` to let the nightly job and escalation actually PUT new prices to Habitica |
+
+**Inspecting it:**
+- `GET /api/pricing-status` — current base price, trailing average, warm-up status, and
+  per-reward `basePrice`/`purchasesToday`/`effectivePrice`/`liveHabiticaValue` (the last one
+  is a live Habitica call, so this endpoint isn't meant for 3-second polling)
+- `GET /api/gold-history?limit=200` — raw `gold_log` rows, newest first
+- `GET /api/purchases?limit=200` — raw `purchase_log` rows, newest first
+- `GET /api/state`'s `rewards[].cost` also reflects the live computed price once one exists
+  (falling back to the static default in `REWARDS` during warm-up), so the dashboard itself
+  stays accurate without any extra network calls
+
+---
+
 ## Pi-hole network enforcement
 
 The vault can block a device's internet (all DNS) until a reward timer unlocks it. It does
@@ -255,6 +317,17 @@ equivalent agent. The realistic options are Apple **Screen Time** (manual, via F
 or a custom app built on Apple's Family Controls framework (a separate project). Pi-hole DNS is
 the only automatic lever, and that blocks the internet rather than just games.
 
+## Linux enforcement (Reward Guard)
+
+Same idea again, this time via a per-user `systemd --user` service - see
+[`linux/README.md`](linux/README.md). Written for Bazzite/KDE (an immutable, rpm-ostree
+based distro), but works on any systemd + Linux desktop. Blocks by Steam library path plus
+`~/Games` (Lutris) and `~/Faugus` (Faugus's Wine prefixes, matched by both install path and
+`WINEPREFIX` - covers Battle.net and every game it launches), kills FFXIV/XIVLauncher by
+process name since it hides its real path inside a Wine/Proton prefix, and shows warnings
+via `kdialog`/`zenity`/`notify-send`. Needs no root and no package layering - everything
+lives under `$HOME`.
+
 ## Customizing
 
 ### Changing rewards
@@ -269,6 +342,7 @@ Set `PORT=8080` in the systemd unit's environment.
 ### Backing up state
 ```bash
 cp ~/reward-vault/data/state.json ~/state-backup-$(date +%F).json
+cp ~/reward-vault/data/vault.db ~/vault-db-backup-$(date +%F).db
 ```
 
 ---
