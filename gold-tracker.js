@@ -193,7 +193,44 @@ async function pollGold() {
     console.log(`[gold-tracker] poll: gp=${gp}${lastKnown == null ? ' (baseline)' : `, delta=${delta >= 0 ? '+' : ''}${delta}`}`);
   } catch (e) {
     console.error('[gold-tracker] poll failed:', e.message);
+    return;
   }
+  // Habitica just answered, so it's a good moment to retry any price push that failed.
+  await syncPendingPrices();
+}
+
+// ============ PRICE SYNC RETRY ============
+// A failed Habitica PUT (e.g. a network blip at midnight) would otherwise leave Habitica on
+// the old price until the next nightly run. Failed rewards are queued in
+// state.pricing.pendingSync and retried after each successful poll, pushing whatever the
+// effective price is *now* (escalation may have moved it since the original failure).
+function markPendingSync(rewardId, rewardName) {
+  const pricing = getState().pricing;
+  pricing.pendingSync = pricing.pendingSync || {};
+  pricing.pendingSync[rewardId] = rewardName;
+}
+
+async function syncPendingPrices() {
+  if (CONFIG.dryRun) return;
+  const pricing = getState().pricing;
+  const pending = Object.entries(pricing.pendingSync || {});
+  if (pending.length === 0) return;
+  for (const [rewardId, rewardName] of pending) {
+    try {
+      const { effective } = computeEffectivePrice(rewardId, rewardName, null);
+      if (effective != null) {
+        const task = await habitica.getRewardTask(rewardName);
+        if (task.value !== effective) {
+          await habitica.setTaskValue(task.id, effective);
+          console.log(`[pricing] sync: ${rewardName} Habitica price ${task.value}g -> ${effective}g`);
+        }
+      }
+      delete pricing.pendingSync[rewardId];
+    } catch (e) {
+      console.error(`[pricing] sync retry failed for ${rewardName}:`, e.message);
+    }
+  }
+  saveState();
 }
 
 // ============ NIGHTLY RE-PRICING ============
@@ -236,7 +273,8 @@ async function runNightlyReprice(getRewardMeta) {
       await habitica.setTaskValue(task.id, price);
       console.log(`[pricing] ${meta.name}: set Habitica price to ${price}g (${meta.hours}h @ ${newBasePerHour.toFixed(2)}g/h)`);
     } catch (e) {
-      console.error(`[pricing] failed to update Habitica price for ${meta.name}:`, e.message);
+      console.error(`[pricing] failed to update Habitica price for ${meta.name} (will retry after next poll):`, e.message);
+      markPendingSync(meta.id, meta.name);
     }
   }
   saveState();
@@ -251,6 +289,9 @@ function scheduleNightly(getRewardMeta) {
 
 function start(getRewardMeta) {
   console.log(`[pricing] config: target=${CONFIG.targetHoursPerDay}h/day trailingWindow=${CONFIG.trailingWindowDays}d escalation=${CONFIG.escalationFactor}x clamp=±${CONFIG.priceClampPct}% pollEvery=${CONFIG.pollIntervalMinutes}min dryRun=${CONFIG.dryRun}`);
+  // Reconcile on startup: the first poll pushes stored prices for any reward Habitica
+  // disagrees on (no-op PUT-wise when they already match).
+  for (const meta of getRewardMeta()) markPendingSync(meta.id, meta.name);
   pollGold();
   setInterval(pollGold, CONFIG.pollIntervalMinutes * 60 * 1000);
   scheduleNightly(getRewardMeta);

@@ -72,7 +72,8 @@ const initialState = {
     basePricePerHour: null,        // last computed & clamped gp/hour
     rewardCost: { handheld: null, grinder: null, raid: null },
     trailingAvgDailyGold: null,
-    lastRepricedAt: null
+    lastRepricedAt: null,
+    pendingSync: {}                // { rewardId: rewardName } — Habitica price pushes to retry
   }
 };
 
